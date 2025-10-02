@@ -6,144 +6,159 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
-    h2 { color: #333; }
-    label { display: inline-block; width: 220px; margin-top: 10px; }
-    input, select { padding: 5px; margin-top: 10px; }
-    button { margin-top: 20px; padding: 10px 15px; cursor: pointer; }
-    table { border-collapse: collapse; margin-top: 20px; width: 100%; }
-    th, td { border: 1px solid #333; padding: 8px; text-align: center; }
-    th { background: #f0f0f0; }
+    .login, .app { max-width: 500px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 10px; }
+    .hidden { display: none; }
+    label { display: block; margin-top: 10px; }
+    input, select, button { margin-top: 5px; width: 100%; padding: 8px; }
+    h2 { text-align: center; }
   </style>
 </head>
 <body>
-  <h2>🔧 Cálculo de Cortes</h2>
 
-  <label for="alto">Alto (mm):</label>
-  <input type="number" id="alto"><br>
+<div class="login" id="login">
+  <h2>Acceso</h2>
+  <label>Contraseña:</label>
+  <input type="password" id="password">
+  <button onclick="login()">Entrar</button>
+</div>
 
-  <label for="ancho">Ancho (mm):</label>
-  <input type="number" id="ancho"><br>
-
-  <label for="largo">Largo de Tira Disponible (mm):</label>
-  <input type="number" id="largo" value="6000"><br>
-
+<div class="app hidden" id="app">
+  <h2>Optimizador de Cortes</h2>
   <label for="sistema">Sistema:</label>
   <select id="sistema">
     <option value="corrediza">Ventana Corrediza Europea</option>
     <option value="fija">Ventana Fija</option>
-  </select><br>
+  </select>
 
-  <button onclick="calcular()">Calcular</button>
-  <button onclick="exportarPDF()">Exportar a PDF</button>
+  <label>Alto (mm):</label>
+  <input type="number" id="alto" placeholder="ej. 1200">
+  <label>Ancho (mm):</label>
+  <input type="number" id="ancho" placeholder="ej. 800">
+  <label>Largo disponible de tira (mm):</label>
+  <input type="number" id="largo" value="6000">
 
-  <div id="resultado"></div>
+  <button onclick="calcular()">Calcular y Exportar PDF</button>
+</div>
 
-  <script>
-    // Definición de sistemas y perfiles
-    const sistemas = {
-      "corrediza": {
-        "MTG1399": { altos: 2, anchos: 2 },
-        "MTG2177": { altos: 4, anchos: 2 },
-        "MTG2176": { altos: 2, anchos: 0 },
-        "MTG2078": { altos: 2, anchos: 1 }
-      },
-      "fija": {
-        "MTG2180": { altos: 2, anchos: 2 },
-        "MTG2184": { altos: 2, anchos: 2 }
+<script>
+const PASSWORD = "1234"; // cámbiala si quieres
+const MERMA = 150;
+
+const sistemas = {
+  "corrediza": {
+    "MTG1399": { altos: 2, anchos: 2 },
+    "MTG2177": { altos: 4, anchos: 2 },
+    "MTG2078": { altos: 2, anchos: 1 },
+    "MTG2176": { altos: 2, anchos: 0 }
+  },
+  "fija": {
+    "MTG2180": { altos: 2, anchos: 2 },
+    "MTG2184": { altos: 2, anchos: 2 }
+  }
+};
+
+function login() {
+  const pass = document.getElementById("password").value;
+  if (pass === PASSWORD) {
+    document.getElementById("login").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+  } else {
+    alert("Contraseña incorrecta");
+  }
+}
+
+function calcular() {
+  const alto = parseInt(document.getElementById("alto").value);
+  const ancho = parseInt(document.getElementById("ancho").value);
+  const largoDisponible = parseInt(document.getElementById("largo").value);
+  const sistema = document.getElementById("sistema").value;
+
+  if (!alto || !ancho || !largoDisponible) {
+    alert("Por favor ingresa alto, ancho y largo disponible.");
+    return;
+  }
+
+  let piezasPorPerfil = {};
+  for (let perfil in sistemas[sistema]) {
+    const def = sistemas[sistema][perfil];
+    let piezas = [];
+    for (let i = 0; i < def.altos; i++) piezas.push(alto);
+    for (let i = 0; i < def.anchos; i++) piezas.push(ancho);
+    piezasPorPerfil[perfil] = piezas;
+  }
+
+  let resumen = {};
+  let tirasPorPerfil = {};
+
+  for (let perfil in piezasPorPerfil) {
+    let piezas = piezasPorPerfil[perfil].slice().sort((a,b)=>b-a);
+    let tiras = [];
+    while (piezas.length > 0) {
+      let espacio = largoDisponible;
+      let cortes = [];
+      for (let i = 0; i < piezas.length;) {
+        let pieza = piezas[i] + MERMA;
+        if (pieza <= espacio) {
+          cortes.push(piezas[i]);
+          espacio -= pieza;
+          piezas.splice(i,1);
+        } else {
+          i++;
+        }
       }
-    };
-
-    let ultimoResumen = {};
-
-    function calcular() {
-      const alto = parseInt(document.getElementById("alto").value);
-      const ancho = parseInt(document.getElementById("ancho").value);
-      const largoDisponible = parseInt(document.getElementById("largo").value);
-      const sistema = document.getElementById("sistema").value;
-
-      if (!alto || !ancho) {
-        alert("Por favor ingrese alto y ancho.");
-        return;
-      }
-
-      let resultados = {};
-      let totalTiras = {};
-
-      for (let perfil in sistemas[sistema]) {
-        const def = sistemas[sistema][perfil];
-
-        // Cantidad total en mm (con repeticiones por altos y anchos)
-        let totalMM = (def.altos * alto) + (def.anchos * ancho);
-
-        // Merma de 150 mm por cada corte
-        let cortes = def.altos + def.anchos;
-        totalMM += cortes * 150;
-
-        resultados[perfil] = totalMM;
-
-        // Número de tiras necesarias
-        totalTiras[perfil] = Math.ceil(totalMM / largoDisponible);
-      }
-
-      ultimoResumen = totalTiras;
-
-      mostrarResultados(totalTiras, resultados);
+      tiras.push({ cortes, sobrante: espacio });
     }
+    tirasPorPerfil[perfil] = tiras;
+    resumen[perfil] = tiras.length;
+  }
 
-    function mostrarResultados(totalTiras, resultados) {
-      let html = "<h3>Resultados</h3>";
-      html += "<table><tr><th>Perfil</th><th>Total (mm)</th><th>Tiras necesarias</th></tr>";
+  exportarPDF(resumen, tirasPorPerfil, largoDisponible);
+}
 
-      for (let perfil in totalTiras) {
-        html += `<tr>
-                  <td>${perfil}</td>
-                  <td>${resultados[perfil]}</td>
-                  <td>${totalTiras[perfil]}</td>
-                 </tr>`;
-      }
-      html += "</table>";
+function exportarPDF(resumen, tirasPorPerfil, largoDisponible) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = 20;
 
-      // Resumen arriba
-      html = "<h3>Resumen:</h3><ul>" + 
-        Object.entries(totalTiras).map(([p, t]) => `<li>Total tiras ${p} = ${t}</li>`).join("") + 
-        "</ul>" + html;
+  doc.setFontSize(14);
+  doc.text("Resumen Global", 10, y); y += 10;
+  doc.setFontSize(12);
+  for (let perfil in resumen) {
+    doc.text(`Total tiras ${perfil} = ${resumen[perfil]}`, 10, y);
+    y += 7;
+  }
 
-      document.getElementById("resultado").innerHTML = html;
-    }
+  y += 10;
+  doc.setFontSize(14);
+  doc.text("Detalle de Cortes", 10, y); y += 10;
 
-    function exportarPDF() {
-      if (!ultimoResumen || Object.keys(ultimoResumen).length === 0) {
-        alert("Primero calcule los resultados.");
-        return;
-      }
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-
-      doc.setFontSize(14);
-      doc.text("Resumen de Cortes", 14, 20);
-
-      let y = 30;
-      for (let perfil in ultimoResumen) {
-        doc.text(`Total tiras ${perfil} = ${ultimoResumen[perfil]}`, 14, y);
-        y += 10;
-      }
-
-      doc.setFontSize(12);
-      doc.text("Detalle de Perfiles:", 14, y + 10);
-
-      // Exportar tabla detallada
-      let tablaY = y + 20;
-      doc.autoTable({
-        startY: tablaY,
-        head: [['Perfil', 'Total (mm)', 'Tiras necesarias']],
-        body: Object.entries(ultimoResumen).map(([perfil, tiras]) => [perfil, "-", tiras]),
+  for (let perfil in tirasPorPerfil) {
+    doc.setFontSize(12);
+    doc.text(`Perfil ${perfil}:`, 10, y); y += 8;
+    tirasPorPerfil[perfil].forEach((tira, idx) => {
+      doc.text(`Tira ${idx+1}`, 10, y); y += 5;
+      let x = 20;
+      let escala = 170 / largoDisponible;
+      tira.cortes.forEach(c => {
+        let ancho = c * escala;
+        doc.rect(x, y, ancho, 10);
+        doc.text(`${c}mm`, x + ancho/2, y+6, { align:"center" });
+        x += ancho;
       });
+      if (tira.sobrante > 0) {
+        let ancho = tira.sobrante * escala;
+        doc.setFillColor(200,200,200);
+        doc.rect(x, y, ancho, 10, "F");
+        doc.text(`Sobrante ${tira.sobrante}`, x+ancho/2, y+6, { align:"center" });
+      }
+      y += 15;
+      if (y > 270) { doc.addPage(); y = 20; }
+    });
+    y += 5;
+  }
 
-      doc.save("resultado_cortes.pdf");
-    }
-  </script>
-  <!-- Librería para tablas en PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  doc.save("cortes.pdf");
+}
+</script>
 </body>
 </html>
