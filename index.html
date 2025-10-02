@@ -1,212 +1,240 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Optimizador de Cortes 2.0</title>
-<style>
-  body { font-family: Arial; margin: 20px; background:#f9f9f9; }
-  .hidden { display: none; }
-  .login, .menu, .admin, .calc { max-width: 800px; margin:auto; }
-  input, select, button { padding: 8px; margin:5px 0; width:100%; }
-  h2 { background:#333; color:#fff; padding:8px; border-radius:5px; }
-  .perfil { border:1px solid #ccc; padding:8px; margin:5px 0; border-radius:5px; }
-  table { border-collapse:collapse; width:100%; margin-top:10px; }
-  th, td { border:1px solid #000; padding:6px; text-align:center; }
-  .delete { color:red; cursor:pointer; margin-left:10px; }
-</style>
+  <meta charset="UTF-8">
+  <title>Optimizador de Cortes</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .hidden { display: none; }
+    .card { border: 1px solid #ccc; border-radius: 8px; padding: 10px; margin: 5px 0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    table, th, td { border: 1px solid black; }
+    th, td { padding: 5px; text-align: center; }
+    button { margin: 5px; padding: 8px 12px; cursor: pointer; }
+  </style>
 </head>
 <body>
 
-<!-- LOGIN -->
-<div class="login">
-  <h2>Acceso</h2>
-  <input type="password" id="pass" placeholder="Contraseña">
-  <button onclick="login()">Entrar</button>
-</div>
+  <!-- Pantalla de login -->
+  <div id="loginScreen">
+    <h2>🔑 Ingresar</h2>
+    <input type="password" id="password" placeholder="Contraseña">
+    <button onclick="login()">Entrar</button>
+  </div>
 
-<!-- MENÚ PRINCIPAL -->
-<div class="menu hidden">
-  <h2>Menú principal</h2>
-  <button onclick="showAdmin()">Administrar sistemas</button>
-  <button onclick="showCalc()">Calcular tiras</button>
-</div>
+  <!-- Menú principal -->
+  <div id="mainMenu" class="hidden">
+    <h2>📋 Menú Principal</h2>
+    <button onclick="showScreen('calcScreen')">Calcular Cortes</button>
+    <button onclick="showScreen('sistemasScreen')">Ver Sistemas</button>
+  </div>
 
-<!-- ADMINISTRACIÓN -->
-<div class="admin hidden">
-  <h2>Administrar sistemas</h2>
-  <input type="text" id="sistemaNombre" placeholder="Nombre del sistema">
-  <button onclick="agregarSistema()">Agregar sistema</button>
-  <h3>Sistemas registrados</h3>
-  <div id="listaSistemas"></div>
-  <button onclick="backMenu()">Volver</button>
-</div>
+  <!-- Pantalla de cálculo -->
+  <div id="calcScreen" class="hidden">
+    <h2>⚙️ Cálculo de Cortes</h2>
+    <label>Alto (mm):</label>
+    <input type="number" id="alto"><br>
+    <label>Ancho (mm):</label>
+    <input type="number" id="ancho"><br>
+    <label>Largo de Tira Disponible (mm):</label>
+    <input type="number" id="largoTira" value="6000"><br>
+    <label>Sistema:</label>
+    <select id="sistemaSelect"></select><br><br>
+    <button onclick="calcular()">Calcular</button>
+    <button onclick="generarPDF()">Exportar a PDF</button>
+    <button onclick="showScreen('mainMenu')">🔙 Regresar</button>
+    <div id="resultado"></div>
+  </div>
 
-<!-- CÁLCULO -->
-<div class="calc hidden">
-  <h2>Calcular tiras</h2>
-  <label>Sistema:</label>
-  <select id="sistemaSelect"></select>
-  <input type="number" id="alto" placeholder="Alto (mm)">
-  <input type="number" id="ancho" placeholder="Ancho (mm)">
-  <input type="number" id="largoTira" placeholder="Largo de la tira disponible (mm)" value="6000">
-  <button onclick="calcular()">Calcular</button>
-  <button onclick="generarPDF()">Generar PDF</button>
-  <div id="resultado"></div>
-  <button onclick="backMenu()">Volver</button>
-</div>
+  <!-- Pantalla de sistemas -->
+  <div id="sistemasScreen" class="hidden">
+    <h2>🛠️ Sistemas Registrados</h2>
+    <div id="sistemasList"></div>
+    <button onclick="showScreen('mainMenu')">🔙 Regresar</button>
+  </div>
 
-<!-- Librería para PDF -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-const PASSWORD = "1234"; // cámbiala
-let sistemas = [];
+const MERMA = 150;
+const PASSWORD = "1234"; // Contraseña
 
-// === LOGIN ===
+// Datos iniciales
+let sistemas = JSON.parse(localStorage.getItem("sistemas")) || {
+  "Ventana Corrediza Europea": [
+    { codigo: "MTG1399", altos: 2, anchos: 2 },
+    { codigo: "MTG2177", altos: 4, anchos: 2 },
+    { codigo: "MTG2176", altos: 2 }
+  ],
+  "Ventana Fija": [
+    { codigo: "MTG2180", altos: 2, anchos: 2 },
+    { codigo: "MTG2184", altos: 2, anchos: 2 }
+  ]
+};
+
+let ultimoResultado = null;
+
+// Login
 function login(){
-  if(document.getElementById("pass").value===PASSWORD){
-    document.querySelector(".login").classList.add("hidden");
-    document.querySelector(".menu").classList.remove("hidden");
-    cargarDatos();
+  let pass = document.getElementById("password").value;
+  if(pass === PASSWORD){
+    document.getElementById("loginScreen").classList.add("hidden");
+    document.getElementById("mainMenu").classList.remove("hidden");
+    actualizarSistemas();
   } else {
     alert("Contraseña incorrecta");
   }
 }
 
-// === CAMBIO DE PANTALLAS ===
-function showAdmin(){
-  document.querySelector(".menu").classList.add("hidden");
-  document.querySelector(".admin").classList.remove("hidden");
-  mostrarSistemas();
-}
-function showCalc(){
-  document.querySelector(".menu").classList.add("hidden");
-  document.querySelector(".calc").classList.remove("hidden");
-  actualizarSelect();
-}
-function backMenu(){
-  document.querySelector(".admin").classList.add("hidden");
-  document.querySelector(".calc").classList.add("hidden");
-  document.querySelector(".menu").classList.remove("hidden");
+function showScreen(id){
+  document.querySelectorAll("div").forEach(d => d.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
 }
 
-// === SISTEMAS ===
-function agregarSistema(){
-  let nombre = document.getElementById("sistemaNombre").value;
-  if(!nombre){alert("Escribe un nombre"); return;}
-  sistemas.push({nombre, perfiles:[]});
-  guardarDatos(); mostrarSistemas();
-  document.getElementById("sistemaNombre").value="";
-}
+function actualizarSistemas(){
+  let cont = document.getElementById("sistemasList");
+  let sel = document.getElementById("sistemaSelect");
+  cont.innerHTML = "";
+  sel.innerHTML = "";
 
-function agregarPerfil(index){
-  let nombre = prompt("Nombre del perfil:");
-  if(!nombre) return;
-  let cortes = prompt("Cortes separados por coma (ej: alto,ancho,alto):");
-  if(!cortes) return;
-  let lista = cortes.split(",").map(x=>x.trim());
-  sistemas[index].perfiles.push({nombre, cortes:lista});
-  guardarDatos(); mostrarSistemas();
-}
-
-function eliminarSistema(i){
-  if(confirm("¿Eliminar sistema completo?")){
-    sistemas.splice(i,1); guardarDatos(); mostrarSistemas();
-  }
-}
-
-function eliminarPerfil(si, pi){
-  sistemas[si].perfiles.splice(pi,1); guardarDatos(); mostrarSistemas();
-}
-
-function mostrarSistemas(){
-  let div = document.getElementById("listaSistemas");
-  div.innerHTML="";
-  sistemas.forEach((s, i)=>{
-    let box=document.createElement("div");
-    box.className="perfil";
-    box.innerHTML=`<b>${s.nombre}</b> 
-      <button onclick="agregarPerfil(${i})">Agregar perfil</button>
-      <span class="delete" onclick="eliminarSistema(${i})">[Eliminar sistema]</span>`;
-    let ul=document.createElement("ul");
-    s.perfiles.forEach((p, j)=>{
-      let li=document.createElement("li");
-      li.innerHTML=`${p.nombre} (cortes: ${p.cortes.join(", ")})
-        <span class="delete" onclick="eliminarPerfil(${i},${j})">[X]</span>`;
-      ul.appendChild(li);
-    });
-    box.appendChild(ul); div.appendChild(box);
+  Object.keys(sistemas).forEach(nombre => {
+    cont.innerHTML += `<div class="card"><b>${nombre}</b><br>Perfiles: ${sistemas[nombre].map(p=>p.codigo).join(", ")}</div>`;
+    sel.innerHTML += `<option value="${nombre}">${nombre}</option>`;
   });
-}
 
-// === GUARDAR Y CARGAR ===
-function guardarDatos(){
   localStorage.setItem("sistemas", JSON.stringify(sistemas));
-}
-function cargarDatos(){
-  let datos=localStorage.getItem("sistemas");
-  if(datos) sistemas=JSON.parse(datos);
-}
-
-// === CÁLCULO ===
-function actualizarSelect(){
-  let sel=document.getElementById("sistemaSelect");
-  sel.innerHTML="";
-  sistemas.forEach((s,i)=>{
-    let opt=document.createElement("option");
-    opt.value=i; opt.textContent=s.nombre; sel.appendChild(opt);
-  });
 }
 
 function calcular(){
-  let si = document.getElementById("sistemaSelect").value;
-  if(si===""){alert("Selecciona un sistema"); return;}
-  let alto=parseInt(document.getElementById("alto").value);
-  let ancho=parseInt(document.getElementById("ancho").value);
-  let largoTira=parseInt(document.getElementById("largoTira").value);
-  if(!alto||!ancho||!largoTira){alert("Completa los datos"); return;}
-  
-  let sistema=sistemas[si];
-  let html=`<h3>Resultados para sistema: ${sistema.nombre}</h3>
-    <table><tr><th>Perfil</th><th>Tiras necesarias</th><th>Sobrante última tira (mm)</th></tr>`;
-  
-  sistema.perfiles.forEach(p=>{
-    let cortesNecesarios=p.cortes.map(c=>c==="alto"?alto:ancho);
-    let tiras=1, sobrante=largoTira;
-    cortesNecesarios.forEach(c=>{
-      if(c<=sobrante){sobrante-=c;}
-      else{tiras++; sobrante=largoTira-c;}
-    });
-    html+=`<tr><td>${p.nombre}</td><td>${tiras}</td><td>${sobrante}</td></tr>`;
-  });
-  html+="</table>";
-  document.getElementById("resultado").innerHTML=html;
+  let alto = parseInt(document.getElementById("alto").value);
+  let ancho = parseInt(document.getElementById("ancho").value);
+  let largoTira = parseInt(document.getElementById("largoTira").value);
+  let sistema = document.getElementById("sistemaSelect").value;
+
+  ultimoResultado = calcularSistema(alto, ancho, largoTira, sistemas[sistema]);
+  mostrarResultado(ultimoResultado);
 }
 
-// === PDF ===
-function generarPDF(){
-  const { jsPDF } = window.jspdf;
-  let doc=new jsPDF();
-  doc.setFontSize(14);
-  doc.text("Reporte de Optimización", 10, 10);
+function calcularSistema(alto, ancho, largoTira, perfiles){
+  let resultado = {};
   
-  let y=20;
-  sistemas.forEach(s=>{
-    doc.setFontSize(12);
-    doc.text(`Sistema: ${s.nombre}`, 10, y); y+=8;
-    doc.setFontSize(10);
-    doc.text("Perfil | Tiras | Sobrante", 10, y); y+=6;
-    doc.line(10, y, 200, y); y+=4;
-    
-    s.perfiles.forEach(p=>{
-      doc.text(`${p.nombre}`, 10, y);
-      doc.text("...", 70, y); // lugar de cálculo en PDF
-      y+=6;
+  perfiles.forEach(perfil => {
+    let cortes = [];
+
+    if(perfil.altos){
+      for(let i=0; i<perfil.altos; i++){
+        cortes.push(alto + MERMA);
+      }
+    }
+
+    if(perfil.anchos){
+      for(let i=0; i<perfil.anchos; i++){
+        cortes.push(ancho + MERMA);
+      }
+    }
+
+    // Optimización detallada
+    let tiras = [];
+    let sobrante = largoTira;
+    let actual = [];
+
+    cortes.forEach(c => {
+      if(c <= sobrante){
+        actual.push(c);
+        sobrante -= c;
+      } else {
+        tiras.push({ cortes: actual, sobrante });
+        actual = [c];
+        sobrante = largoTira - c;
+      }
     });
-    y+=6;
+    tiras.push({ cortes: actual, sobrante });
+
+    resultado[perfil.codigo] = { tiras };
   });
-  
-  doc.save("reporte_sistemas.pdf");
+
+  return resultado;
+}
+
+function mostrarResultado(resultado){
+  let html = `<h2>🔢 Resumen Global</h2>`;
+
+  Object.keys(resultado).forEach(codigo => {
+    html += `<p>Total tiras ${codigo} = ${resultado[codigo].tiras.length}</p>`;
+  });
+
+  Object.keys(resultado).forEach(codigo => {
+    let tiras = resultado[codigo].tiras;
+    html += `<h3>Perfil ${codigo} → Total de tiras: ${tiras.length}</h3>`;
+    html += "<table><tr><th># Tira</th><th>Cortes (mm)</th><th>Sobrante (mm)</th></tr>";
+    tiras.forEach((t, i) => {
+      html += `<tr>
+        <td>${i+1}</td>
+        <td>${t.cortes.join(", ")}</td>
+        <td>${t.sobrante}</td>
+      </tr>`;
+    });
+    html += "</table><br>";
+  });
+
+  document.getElementById("resultado").innerHTML = html;
+}
+
+// Exportar PDF con resumen
+function generarPDF(){
+  if(!ultimoResultado){ alert("Primero haz un cálculo."); return; }
+
+  const { jsPDF } = window.jspdf;
+  let doc = new jsPDF();
+  let y = 20;
+
+  doc.setFontSize(14);
+  doc.text("Reporte de Optimización de Cortes", 20, y);
+  y += 10;
+
+  // Resumen global por perfil
+  doc.setFontSize(12);
+  doc.text("🔢 Resumen Global:", 20, y);
+  y += 8;
+
+  Object.keys(ultimoResultado).forEach(codigo => {
+    doc.text(`Total tiras ${codigo} = ${ultimoResultado[codigo].tiras.length}`, 20, y);
+    y += 6;
+  });
+
+  y += 10;
+
+  // Detalle por perfil
+  Object.keys(ultimoResultado).forEach(codigo => {
+    let tiras = ultimoResultado[codigo].tiras;
+
+    doc.setFontSize(12);
+    doc.text(`Perfil ${codigo} → Total de tiras: ${tiras.length}`, 20, y);
+    y += 8;
+
+    doc.setFontSize(10);
+    doc.text("Tira", 20, y);
+    doc.text("Cortes (mm)", 50, y);
+    doc.text("Sobrante (mm)", 150, y);
+    y += 5;
+
+    tiras.forEach((t, i) => {
+      doc.text(String(i+1), 20, y);
+      doc.text(t.cortes.join(", "), 50, y);
+      doc.text(String(t.sobrante), 150, y);
+      y += 5;
+
+      if(y > 270){
+        doc.addPage();
+        y = 20;
+      }
+    });
+
+    y += 10;
+  });
+
+  doc.save("optimizacion_detallada.pdf");
 }
 </script>
+
 </body>
 </html>
