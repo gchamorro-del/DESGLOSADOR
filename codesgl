@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Optimizador de Tiras Premium con Resaltado</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    .hidden { display: none; }
+    input, button { margin: 5px 0; padding: 8px; width: 100%; }
+    .delete { color: red; cursor: pointer; margin-left: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="login">
+  <h2>Acceso</h2>
+  <input type="password" id="pass" placeholder="Contraseña">
+  <button onclick="login()">Entrar</button>
+</div>
+
+<div class="app hidden">
+  <h2>Optimizador de Tiras Premium</h2>
+  
+  <h3>Registrar perfil</h3>
+  <input type="text" id="sistema" placeholder="Nombre del sistema (ej: Corredizo)">
+  <input type="text" id="perfil" placeholder="Nombre del perfil">
+  <input type="number" id="largo" placeholder="Largo de tira (mm)">
+  <input type="text" id="cortes" placeholder="Cortes (ej: 1200,1500,1800)">
+  <button onclick="agregarPerfil()">Agregar Perfil</button>
+  
+  <h3>Perfiles registrados</h3>
+  <div id="listaPerfiles"></div>
+  
+  <button onclick="calcularTodo()">Calcular Todo</button>
+  <button onclick="borrarTodo()">Borrar Todo</button>
+  <button onclick="exportarPDF()">Exportar PDF Premium</button>
+  
+  <h3>Resultados</h3>
+  <div id="resultado"></div>
+</div>
+
+<script>
+const PASSWORD = "1234"; 
+let sistemas = {};
+
+// === LOGIN ===
+function login(){
+  let p = document.getElementById("pass").value;
+  if(p === PASSWORD){
+    document.querySelector(".login").classList.add("hidden");
+    document.querySelector(".app").classList.remove("hidden");
+    cargarDatos();
+  } else {
+    alert("Contraseña incorrecta");
+  }
+}
+
+// === AGREGAR PERFIL ===
+function agregarPerfil(){
+  let sistema = document.getElementById("sistema").value.trim();
+  let nombre = document.getElementById("perfil").value.trim();
+  let largo = parseInt(document.getElementById("largo").value);
+  let cortes = document.getElementById("cortes").value.split(",").map(x=>parseInt(x.trim())).filter(x=>!isNaN(x));
+  
+  if(!sistema || !nombre || !largo || cortes.length === 0){
+    alert("Completa todos los campos.");
+    return;
+  }
+  
+  if(!sistemas[sistema]) sistemas[sistema] = [];
+  sistemas[sistema].push({nombre, largo, cortes});
+  
+  guardarDatos();
+  mostrarPerfiles();
+  
+  document.getElementById("sistema").value = "";
+  document.getElementById("perfil").value = "";
+  document.getElementById("largo").value = "";
+  document.getElementById("cortes").value = "";
+}
+
+// === MOSTRAR PERFILES ===
+function mostrarPerfiles(){
+  let div = document.getElementById("listaPerfiles");
+  div.innerHTML = "";
+  for(let s in sistemas){
+    let box = document.createElement("div");
+    box.innerHTML = `<h4>Sistema: ${s}</h4><ul>`;
+    sistemas[s].forEach((p,i)=>{
+      box.innerHTML += `<li>${p.nombre} (Largo: ${p.largo}, Cortes: ${p.cortes.join(", ")}) 
+        <span class="delete" onclick="eliminarPerfil('${s}',${i})">[X]</span></li>`;
+    });
+    box.innerHTML += "</ul>";
+    div.appendChild(box);
+  }
+}
+
+// === ELIMINAR PERFIL ===
+function eliminarPerfil(s,i){
+  sistemas[s].splice(i,1);
+  if(sistemas[s].length === 0) delete sistemas[s];
+  guardarDatos();
+  mostrarPerfiles();
+}
+
+// === GUARDAR Y CARGAR ===
+function guardarDatos(){
+  localStorage.setItem("sistemas", JSON.stringify(sistemas));
+}
+
+function cargarDatos(){
+  let datos = localStorage.getItem("sistemas");
+  if(datos) sistemas = JSON.parse(datos);
+  mostrarPerfiles();
+}
+
+// === BORRAR TODO ===
+function borrarTodo(){
+  if(confirm("¿Seguro que deseas borrar todo?")){
+    sistemas = {};
+    guardarDatos();
+    mostrarPerfiles();
+    document.getElementById("resultado").innerHTML = "";
+  }
+}
+
+// === CALCULAR PERFIL DETALLADO ===
+function calcularPerfil(p){
+  let tiras = [];
+  let sobrante = p.largo;
+  let currentTira = [];
+  
+  let cortes = [...p.cortes].sort((a,b)=>b-a);
+  
+  cortes.forEach(c=>{
+    if(c <= sobrante){
+      currentTira.push(c);
+      sobrante -= c;
+    } else {
+      tiras.push({cortes: currentTira, sobrante});
+      currentTira = [c];
+      sobrante = p.largo - c;
+    }
+  });
+  tiras.push({cortes: currentTira, sobrante});
+  
+  return {tiras, sobrante};
+}
+
+// === EXPORTAR PDF PREMIUM ===
+function exportarPDF(){
+  if(Object.keys(sistemas).length === 0){
+    alert("No hay datos para exportar.");
+    return;
+  }
+  
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit: 'mm', format: 'a4'});
+  const fecha = new Date().toLocaleString();
+  
+  // Encabezado con logo y nombre del taller
+  const logoUrl = "https://i.imgur.com/NkP7k8b.png"; // Cambia por tu logo
+  const img = new Image();
+  img.src = logoUrl;
+  img.onload = function(){
+    doc.addImage(img, "PNG", 10, 10, 25, 25);
+    
+    doc.setFontSize(16);
+    doc.text("Taller de Carpintería Profesional", 105, 20, {align: 'center'});
+    doc.setFontSize(12);
+    doc.text("Reporte Premium de Optimización de Tiras", 105, 28, {align: 'center'});
+    doc.text(`Fecha: ${fecha}`, 10, 45);
+    
+    let y = 50;
+    
+    for(let s in sistemas){
+      doc.setFontSize(12);
+      doc.setTextColor(0,0,100);
+      doc.text(`Sistema: ${s}`, 10, y);
+      y += 6;
+      
+      for(let p of sistemas[s]){
+        doc.setFontSize(11);
+        doc.setTextColor(0,0,0);
+        doc.text(`Perfil: ${p.nombre} (Largo: ${p.largo} mm)`, 12, y);
+        y += 6;
+        
+        let {tiras} = calcularPerfil(p);
+        let rows = tiras.map((t,i)=>[i+1, t.cortes.join("+"), t.sobrante + " mm"]);
+        
+        doc.autoTable({
+          startY: y,
+          head: [["Tira", "Cortes", "Sobrante"]],
+          body: rows,
+          theme: "grid",
+          styles: { halign: "center", fontSize: 10 },
+          headStyles: {fillColor: [100,149,237], textColor: 255, fontStyle: 'bold'},
+          didParseCell: function(data) {
+            if(data.section === "body" && data.column.index === 2){
+              let sobrante = parseInt(data.cell.raw);
+              if(sobrante <= 100){
+                data.cell.styles.fillColor = [200, 255, 200]; // verde claro
+              } else if(sobrante >= 1000){
+                data.cell.styles.fillColor = [255, 200, 200]; // rojo claro
+              }
+            }
+          }
+        });
+        
+        y = doc.lastAutoTable.finalY + 8;
+        if(y > 270){ doc.addPage(); y = 20; }
+      }
+      y += 5;
+    }
+    
+    doc.save("reporte_premium_tiras.pdf");
+  }
+}
+</script>
+
+</body>
+</html>
