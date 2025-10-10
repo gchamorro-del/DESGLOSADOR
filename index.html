@@ -350,15 +350,19 @@ function exportPdf(){
       const barY = y + 4;
       const barH = 8;
       let x = x0;
-      t.cortes.forEach((len, idx)=>{
-        const segW = len * scale;
-        const [r,g,b] = colorForId(t.winRefs[idx]);
-        doc.setFillColor(r,g,b);
-        doc.rect(x, barY, segW, barH, 'F');
-        doc.setFontSize(6);
-        doc.setTextColor(255,255,255);
-        doc.text(`${t.winRefs[idx]} ${len}`, x + segW/2, barY + barH - 1, {align:'center'});
-        x += segW + MERMA * scale;
+t.cortes.forEach((len, idx)=>{
+  const segW = len * scale;
+  const [r,g,b] = colorForId(t.winRefs[idx]);
+  doc.setFillColor(r,g,b);
+  doc.rect(x, barY, segW, barH, 'F');
+  
+  // Texto centrado dentro de la barra, con leve separación vertical
+  doc.setFontSize(7);
+  doc.setTextColor(255,255,255);
+  doc.text(`${t.winRefs[idx]} ${len}`, x + segW/2, barY + barH + 6, {align:'center'}); // 👈 se movió debajo de la barra
+  
+  x += segW + MERMA * scale;
+});
       });
       const sobrW = t.sobrante * scale;
       doc.setFillColor(60,60,60);
