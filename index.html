@@ -366,14 +366,14 @@ function exportPdf(){
   doc.setFontSize(16); doc.setTextColor(20,220,180);
   doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
   y += 18;
-  doc.setFontSize(10); doc.setTextColor(200,200,200);
+  doc.setFontSize(10); doc.setTextColor(0,0,0);
   doc.text(`Proyecto: ${data.proyecto || '-'}`, margin, y);
   doc.text(`Usuario: ${data.usuario || '-'}`, margin + 300, y);
   doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 160, y);
   y += 16;
 
   // listado ventanas
-  doc.setFontSize(11); doc.setTextColor(230,230,230);
+  doc.setFontSize(11); doc.setTextColor(0,0,0);
   doc.text('Listado de ventanas ingresadas:', margin, y); y += 12;
   doc.setFontSize(9);
   if(Array.isArray(data.filas) && data.filas.length){
@@ -413,13 +413,13 @@ function exportPdf(){
   doc.setFontSize(12); doc.text('Diagramas de cortes por perfil (colores por ventana):', margin, y); y += 14;
   const barMaxWidth = Math.min(pageW - margin*2 - 160, 900);
   const barH = 14;
-  const gap = 18;
+  const gap = 22;
 
   const perfilCodes = Object.keys(data.tirasPorPerfil || {});
   for(const perfil of perfilCodes){
     if(y > pageH - 120){ doc.addPage(); y = margin; }
-    doc.setFontSize(11); doc.setTextColor(200,200,200);
-    doc.text(`${perfil} — Tiras: ${ (data.tirasPorPerfil[perfil]||[]).length }`, margin, y); y += 10;
+    doc.setFontSize(11); doc.setTextColor(0,0,0);
+    doc.text(`${perfil} — Tiras: ${(data.tirasPorPerfil[perfil]||[]).length}`, margin, y); y += 10;
     const tiras = data.tirasPorPerfil[perfil] || [];
     if(tiras.length === 0){
       doc.setFontSize(9); doc.text('No hay piezas para este perfil.', margin+10, y); y += 14;
@@ -428,13 +428,14 @@ function exportPdf(){
     for(let ti=0; ti<tiras.length; ti++){
       if(y > pageH - 80){ doc.addPage(); y = margin; }
       const tira = tiras[ti];
-      // escala por largo de esta tira
       const scale = (tira.largo && tira.largo>0) ? (barMaxWidth / tira.largo) : (barMaxWidth / 6000);
       let x = margin + 120; const baseY = y;
-      // border
+
+      // borde
       doc.setDrawColor(120);
       doc.rect(x, baseY, barMaxWidth, barH);
-      // dibujar cortes
+
+      // cortes
       for(let ci=0; ci<tira.cortes.length; ci++){
         const corte = tira.cortes[ci];
         const win = (tira.winRefs && tira.winRefs[ci]) ? tira.winRefs[ci] : 'SinID';
@@ -442,35 +443,49 @@ function exportPdf(){
         const seg = (corte + MERMA) * scale;
         doc.setFillColor(color[0], color[1], color[2]);
         doc.rect(x, baseY, seg, barH, 'F');
-        // etiqueta: "V1 (MTG1399) = 1200 mm"
         const etiqueta = `${win} (${perfil}) = ${corte} mm`;
         doc.setFontSize(8);
-        // si el segmento es suficientemente ancho, escribir dentro; si no, escribir encima
         if(seg > 36){
           doc.setTextColor(255,255,255);
           doc.text(etiqueta, x + seg/2, baseY + barH/2 + 3, { align: 'center' });
         } else {
-          doc.setTextColor(220,220,220);
+          doc.setTextColor(0,0,0);
           doc.text(etiqueta, x + seg/2, baseY - 2, { align: 'center' });
         }
         x += seg;
       }
+
       // sobrante
       if(tira.sobrante > 0){
         const sobraW = tira.sobrante * scale;
         doc.setFillColor(110,110,110);
         doc.rect(x, baseY, sobraW, barH, 'F');
-        doc.setFontSize(8); doc.setTextColor(20,20,20);
+        doc.setFontSize(8); doc.setTextColor(0,0,0);
         doc.text(`Sobrante ${tira.sobrante} mm`, x + Math.max(10, sobraW/2), baseY + barH/2 + 3, {align:'center'});
       }
-      // left label
-      doc.setFontSize(9); doc.setTextColor(200,200,200);
+
+      // etiqueta "Tira X"
+      doc.setFontSize(9); doc.setTextColor(0,0,0);
       doc.text(`Tira ${ti+1}`, margin + 20, baseY + barH/2 + 3);
+
+      // NUEVO: medida total de la tira
+      if (tira.largo && tira.largo > 0) {
+        doc.setFontSize(8);
+        doc.text(`Tira total: ${tira.largo} mm`, margin + 20, baseY + barH + 12);
+      }
+
       y += gap;
     }
     y += 8;
   }
 
+  // guardar
+  const proj = sanitizeFilename(data.proyecto || 'Proyecto');
+  const now = new Date();
+  const stamp = now.getFullYear().toString() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '_' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+  const filename = `Cortes_${proj}_${stamp}.pdf`;
+  doc.save(filename);
+}
   // fichero nombre automático
   const proj = sanitizeFilename(data.proyecto || 'Proyecto');
   const now = new Date();
