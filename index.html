@@ -118,23 +118,22 @@
 <script>
 /* ----------------- CONFIG y DATOS ----------------- */
 const PASSWORD = "1234";
-const MERMA = 50; // mm por corte, como definiste
+const MERMA = 150; // mm por corte, como definiste
 const SYSTEMS = {
-  "Corrediza Europea 3 VIAS": {
+  "Corrediza Europea": {
     "MTG1399": { altos: 2, anchos: 2 },
     "MTG2177": { altos: 4, anchos: 2 },
     "MTG2176": { altos: 2, anchos: 0 },
     "EUAA01": { cantidad: 1, tipo: "herraje" }
   },
-  "Fija Europea": {
+  "Fija": {
     "MTG2180": { altos: 2, anchos: 2 },
     "MTG2184": { altos: 2, anchos: 2 },
     "EUAA01": { cantidad: 1, tipo: "herraje" }
   },
-  "Corrediza Europea 3 VIAS CON CEDAZO  ": {},
-  "Abatible": {},
-  "Corrediza Europea 2 VIAS": {},
-  "Proyectable": {}
+  "Batiente": {},
+  "Proyección": {},
+  "Otro": {}
 };
 
 /* ----------------- ESTADO ----------------- */
@@ -364,17 +363,17 @@ function exportPdf(){
   let y = margin;
 
   // header
-  doc.setFontSize(16); doc.setTextColor(0,0,0);
+  doc.setFontSize(16); doc.setTextColor(20,220,180);
   doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
   y += 18;
-  doc.setFontSize(10); doc.setTextColor(0,0,0);
+  doc.setFontSize(10); doc.setTextColor(200,200,200);
   doc.text(`Proyecto: ${data.proyecto || '-'}`, margin, y);
   doc.text(`Usuario: ${data.usuario || '-'}`, margin + 300, y);
   doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 160, y);
   y += 16;
 
   // listado ventanas
-  doc.setFontSize(11); doc.setTextColor(0,0,0);
+  doc.setFontSize(11); doc.setTextColor(230,230,230);
   doc.text('Listado de ventanas ingresadas:', margin, y); y += 12;
   doc.setFontSize(9);
   if(Array.isArray(data.filas) && data.filas.length){
@@ -444,7 +443,7 @@ function exportPdf(){
         doc.setFillColor(color[0], color[1], color[2]);
         doc.rect(x, baseY, seg, barH, 'F');
         // etiqueta: "V1 (MTG1399) = 1200 mm"
-        const etiqueta = `${win} (${}) = ${corte} mm`;
+        const etiqueta = `${win} (${perfil}) = ${corte} mm`;
         doc.setFontSize(8);
         // si el segmento es suficientemente ancho, escribir dentro; si no, escribir encima
         if(seg > 36){
@@ -465,7 +464,7 @@ function exportPdf(){
         doc.text(`Sobrante ${tira.sobrante} mm`, x + Math.max(10, sobraW/2), baseY + barH/2 + 3, {align:'center'});
       }
       // left label
-      doc.setFontSize(9); doc.setTextColor(50,50,50);
+      doc.setFontSize(9); doc.setTextColor(200,200,200);
       doc.text(`Tira ${ti+1}`, margin + 20, baseY + barH/2 + 3);
       y += gap;
     }
