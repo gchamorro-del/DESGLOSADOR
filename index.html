@@ -118,7 +118,7 @@
 <script>
 /* ----------------- CONFIG y DATOS ----------------- */
 const PASSWORD = "1234";
-const MERMA = 150; // mm por corte, como definiste
+const MERMA = 50; // mm por corte, como definiste
 const SYSTEMS = {
   "Corrediza Europea 3 VIAS": {
     "MTG1399": { altos: 2, anchos: 2 },
@@ -444,7 +444,7 @@ function exportPdf(){
         doc.setFillColor(color[0], color[1], color[2]);
         doc.rect(x, baseY, seg, barH, 'F');
         // etiqueta: "V1 (MTG1399) = 1200 mm"
-        const etiqueta = `${win} (${perfil}) = ${corte} mm`;
+        const etiqueta = `${win} (${}) = ${corte} mm`;
         doc.setFontSize(8);
         // si el segmento es suficientemente ancho, escribir dentro; si no, escribir encima
         if(seg > 36){
@@ -465,7 +465,7 @@ function exportPdf(){
         doc.text(`Sobrante ${tira.sobrante} mm`, x + Math.max(10, sobraW/2), baseY + barH/2 + 3, {align:'center'});
       }
       // left label
-      doc.setFontSize(9); doc.setTextColor(200,200,200);
+      doc.setFontSize(9); doc.setTextColor(50,50,50);
       doc.text(`Tira ${ti+1}`, margin + 20, baseY + barH/2 + 3);
       y += gap;
     }
