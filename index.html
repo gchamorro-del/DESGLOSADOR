@@ -418,7 +418,7 @@ function exportPdf(){
   const perfilCodes = Object.keys(data.tirasPorPerfil || {});
   for(const perfil of perfilCodes){
     if(y > pageH - 120){ doc.addPage(); y = margin; }
-    doc.setFontSize(11); doc.setTextColor(200,200,200);
+    doc.setFontSize(11); doc.setTextColor(0,0,0);
     doc.text(`${perfil} — Tiras: ${ (data.tirasPorPerfil[perfil]||[]).length }`, margin, y); y += 10;
     const tiras = data.tirasPorPerfil[perfil] || [];
     if(tiras.length === 0){
