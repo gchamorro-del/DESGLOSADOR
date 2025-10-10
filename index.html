@@ -120,20 +120,21 @@
 const PASSWORD = "1234";
 const MERMA = 150; // mm por corte, como definiste
 const SYSTEMS = {
-  "Corrediza Europea": {
+  "Corrediza Europea 3 VIAS": {
     "MTG1399": { altos: 2, anchos: 2 },
     "MTG2177": { altos: 4, anchos: 2 },
     "MTG2176": { altos: 2, anchos: 0 },
     "EUAA01": { cantidad: 1, tipo: "herraje" }
   },
-  "Fija": {
+  "Fija Europea": {
     "MTG2180": { altos: 2, anchos: 2 },
     "MTG2184": { altos: 2, anchos: 2 },
     "EUAA01": { cantidad: 1, tipo: "herraje" }
   },
-  "Batiente": {},
-  "Proyección": {},
-  "Otro": {}
+  "Corrediza Europea 3 VIAS CON CEDAZO  ": {},
+  "Abatible": {},
+  "Corrediza Europea 2 VIAS": {},
+  "Proyectable": {}
 };
 
 /* ----------------- ESTADO ----------------- */
@@ -363,17 +364,17 @@ function exportPdf(){
   let y = margin;
 
   // header
-  doc.setFontSize(16); doc.setTextColor(20,220,180);
+  doc.setFontSize(16); doc.setTextColor(0,0,0);
   doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
   y += 18;
-  doc.setFontSize(10); doc.setTextColor(200,200,200);
+  doc.setFontSize(10); doc.setTextColor(0,0,0);
   doc.text(`Proyecto: ${data.proyecto || '-'}`, margin, y);
   doc.text(`Usuario: ${data.usuario || '-'}`, margin + 300, y);
   doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 160, y);
   y += 16;
 
   // listado ventanas
-  doc.setFontSize(11); doc.setTextColor(230,230,230);
+  doc.setFontSize(11); doc.setTextColor(0,0,0);
   doc.text('Listado de ventanas ingresadas:', margin, y); y += 12;
   doc.setFontSize(9);
   if(Array.isArray(data.filas) && data.filas.length){
