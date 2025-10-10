@@ -363,7 +363,7 @@ function exportPdf(){
   let y = margin;
 
   // header
-  doc.setFontSize(16); doc.setTextColor(20,220,180);
+  doc.setFontSize(16); doc.setTextColor(0,0,0);
   doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
   y += 18;
   doc.setFontSize(10); doc.setTextColor(0,0,0);
@@ -373,7 +373,7 @@ function exportPdf(){
   y += 16;
 
   // listado ventanas
-  doc.setFontSize(11); doc.setTextColor(230,230,230);
+  doc.setFontSize(11); doc.setTextColor(0,0,0);
   doc.text('Listado de ventanas ingresadas:', margin, y); y += 12;
   doc.setFontSize(9);
   if(Array.isArray(data.filas) && data.filas.length){
