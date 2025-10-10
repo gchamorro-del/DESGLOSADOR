@@ -12,7 +12,7 @@
     --card:#0f1720;
     --text:#e6eef6;
     --muted:#98a2b3;
-    --accent:#2ec4b6; /* verde-taller */
+    --accent:#2ec4b6;
     --danger:#ef4444;
     --border:#2a2f33;
   }
@@ -50,7 +50,6 @@
 </header>
 
 <div class="wrap">
-  <!-- LOGIN -->
   <div id="loginSection" class="login-box panel">
     <h2 style="color:var(--text);margin:0 0 8px 0">Acceso</h2>
     <div class="row" style="gap:8px">
@@ -69,7 +68,6 @@
     <p class="small" style="margin-top:10px;color:var(--muted)">Contraseña fija por defecto: <b>1234</b></p>
   </div>
 
-  <!-- APP -->
   <div id="appSection" style="display:none">
     <div class="panel">
       <div class="row" style="align-items:center;gap:12px">
@@ -116,9 +114,8 @@
 </div>
 
 <script>
-/* ----------------- CONFIG y DATOS ----------------- */
 const PASSWORD = "1234";
-const MERMA = 150; // mm por corte, como definiste
+const MERMA = 150;
 const SYSTEMS = {
   "Corrediza Europea": {
     "MTG1399": { altos: 2, anchos: 2 },
@@ -129,23 +126,19 @@ const SYSTEMS = {
   "Fija": {
     "MTG2180": { altos: 2, anchos: 2 },
     "MTG2184": { altos: 2, anchos: 2 },
-    "EUAA01": { cantidad: 4, tipo: "herraje" }
+    "EUAA01": { cantidad: 1, tipo: "herraje" }
   },
   "Batiente": {},
   "Proyección": {},
   "Otro": {}
 };
-
-/* ----------------- ESTADO ----------------- */
 let lastResults = null;
 let currentUser = null;
 
-/* ----------------- UTIL: limpiar texto para filename ----------------- */
 function sanitizeFilename(s){
   return s.replace(/[^a-z0-9_\-]/gi,'_').substring(0,80);
 }
 
-/* ----------------- LOGIN ----------------- */
 function doLogin(){
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
@@ -155,10 +148,9 @@ function doLogin(){
   document.getElementById('hdrUser').innerText = `Usuario: ${u}`;
   document.getElementById('loginSection').style.display = 'none';
   document.getElementById('appSection').style.display = 'block';
-  addRow(); // fila inicial
+  addRow();
 }
 
-/* ----------------- INTERFAZ FILAS ----------------- */
 function addRow(){
   const tbody = document.querySelector('#tableWindows tbody');
   const tr = document.createElement('tr');
@@ -178,14 +170,10 @@ function addRow(){
   tbody.appendChild(tr);
 }
 
-/* ----------------- PACKING (objetos con ventana ref) ----------------- */
-/* empaqueta piezas objetos: {val: mm, win: 'V1'} */
 function packPiecesObjects(piecesObj, largoDisponible){
-  // piezasObj: array of {val, win}
   if(!Array.isArray(piecesObj)) piecesObj=[];
-  // ordenar descendente por val
   let arr = piecesObj.slice().filter(p=>Number(p.val)>0).sort((a,b)=>b.val - a.val);
-  let bins = []; // { remain, cortes: [vals], winRefs: [], largo }
+  let bins = [];
 
   arr.forEach(p=>{
     const need = p.val + MERMA;
@@ -205,54 +193,16 @@ function packPiecesObjects(piecesObj, largoDisponible){
     }
   });
 
-  // mejora local limitada (intento de mover piezas)
-  let improved=true, iter=0;
-  while(improved && iter<6){
-    improved=false; iter++;
-    bins.sort((a,b)=>a.remain - b.remain);
-    for(let i=0;i<bins.length;i++){
-      let target=bins[i];
-      if(target.remain<=0) continue;
-      let found=null;
-      for(let j=bins.length-1;j>=0;j--){
-        if(j===i) continue;
-        for(let k=0;k<bins[j].cortes.length;k++){
-          let piece = bins[j].cortes[k];
-          let need = piece + MERMA;
-          if(need <= target.remain){
-            found={from:j,pos:k,piece};
-            break;
-          }
-        }
-        if(found) break;
-      }
-      if(found){
-        // mover pieza
-        const movedWin = bins[found.from].winRefs[found.pos];
-        bins[found.from].cortes.splice(found.pos,1);
-        bins[found.from].winRefs.splice(found.pos,1);
-        bins[found.from].remain += found.piece + MERMA;
-        target.cortes.push(found.piece);
-        target.winRefs.push(movedWin);
-        target.remain -= found.piece + MERMA;
-        // eliminar bins vacíos
-        for(let b=bins.length-1;b>=0;b--) if(bins[b].cortes.length===0) bins.splice(b,1);
-        improved=true; break;
-      }
-    }
-  }
-
   return bins.map(b=>({ cortes: b.cortes.slice(), winRefs: b.winRefs.slice(), sobrante: Math.max(0,b.remain), largo: b.largo }));
 }
 
-/* ----------------- CALCULAR: genera piezas por perfil y empaqueta ----------------- */
 function calcular(){
   document.getElementById('summary').innerHTML = '<div class="muted center">Calculando...</div>';
   const rows = Array.from(document.querySelectorAll('#tableWindows tbody tr'));
   if(rows.length===0){ alert('Agrega al menos una ventana.'); document.getElementById('summary').innerHTML=''; return; }
 
-  const piezasPorPerfilPorLargo = {}; // perfil -> { largo: [ {val,win}, ... ] }
-  const herrajes = {}; // perfil_herraje -> total unidades
+  const piezasPorPerfilPorLargo = {};
+  const herrajes = {};
   const filasList = [];
 
   rows.forEach(r=>{
@@ -261,11 +211,10 @@ function calcular(){
     const ancho = Number(r.children[2].children[0].value) || 0;
     const qty = Math.max(1, Number(r.children[3].children[0].value) || 1);
     const sistema = r.children[4].children[0].value;
-    const largo = Number(r.children[5].children[0].value) || Number(document.getElementById('globalLargo').value) || 6000;
-
+    const largo = Number(r.children[5].children[0].value) || 6000;
     filasList.push({ winId, alto, ancho, qty, sistema, largo });
 
-    if(!alto || !ancho) return; // ignorar incompletos
+    if(!alto || !ancho) return;
 
     const perfiles = SYSTEMS[sistema] || {};
     Object.entries(perfiles).forEach(([perfil, def])=>{
@@ -283,7 +232,6 @@ function calcular(){
     });
   });
 
-  // empaquetado por perfil y por cada largo
   const tirasPorPerfil = {};
   const resumenPorPerfil = {};
   Object.entries(piezasPorPerfilPorLargo).forEach(([perfil, mapL])=>{
@@ -292,14 +240,12 @@ function calcular(){
       const largoNum = Number(largoKey);
       if(!piezas || piezas.length===0) return;
       const tiras = packPiecesObjects(piezas, largoNum);
-      // tiras contienen winRefs
       todas = todas.concat(tiras);
     });
     tirasPorPerfil[perfil] = todas;
     resumenPorPerfil[perfil] = todas.length;
   });
 
-  // agrupar resumen por sistema para pantalla
   const resumenPorSistema = {};
   Object.entries(resumenPorPerfil).forEach(([perfil, n])=>{
     let sysFound = null;
@@ -321,7 +267,6 @@ function calcular(){
     resumenPorSistema
   };
 
-  // mostrar solo resumen por pantalla (por sistema y perfil)
   let html = '<h3 style="color:var(--accent)">🔢 Resumen global (totales por perfil)</h3>';
   Object.entries(lastResults.resumenPorSistema).forEach(([sys, profiles])=>{
     html += `<div style="text-align:left;margin-top:6px"><b>${sys}</b><ul style="margin:6px 0 8px 18px">`;
@@ -338,20 +283,18 @@ function calcular(){
   document.getElementById('summary').innerHTML = html;
 }
 
-/* ----------------- ASIGNAR COLOR DETERMINISTA POR IDVENTANA ----------------- */
 const PALETTE = [
   [38,166,154],[3,169,244],[255,138,101],[156,39,176],[255,193,7],
   [76,175,80],[233,30,99],[96,125,139],[0,188,212],[205,220,57]
 ];
 function colorForId(id){
-  // hash string to index
   let h=0;
   for(let i=0;i<id.length;i++) h = (h<<5)-h + id.charCodeAt(i);
   const idx = Math.abs(h) % PALETTE.length;
   return PALETTE[idx];
 }
 
-/* ----------------- EXPORTAR PDF (APAI SADO / landscape) ----------------- */
+/* ----------------- EXPORTAR PDF (MODIFICADO) ----------------- */
 function exportPdf(){
   if(!lastResults){ alert('Calcula primero antes de exportar.'); return; }
   const data = lastResults;
@@ -362,18 +305,16 @@ function exportPdf(){
   const margin = 36;
   let y = margin;
 
-  // header
-  doc.setFontSize(16); doc.setTextColor(0,0,0);
+  doc.setFontSize(16); doc.setTextColor(20,220,180);
   doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
   y += 18;
-  doc.setFontSize(10); doc.setTextColor(0,0,0);
+  doc.setFontSize(10); doc.setTextColor(200,200,200);
   doc.text(`Proyecto: ${data.proyecto || '-'}`, margin, y);
   doc.text(`Usuario: ${data.usuario || '-'}`, margin + 300, y);
   doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 160, y);
   y += 16;
 
-  // listado ventanas
-  doc.setFontSize(11); doc.setTextColor(0,0,0);
+  doc.setFontSize(11); doc.setTextColor(230,230,230);
   doc.text('Listado de ventanas ingresadas:', margin, y); y += 12;
   doc.setFontSize(9);
   if(Array.isArray(data.filas) && data.filas.length){
@@ -382,12 +323,9 @@ function exportPdf(){
       doc.text(`${i+1}. ${f.winId} | ${f.sistema} | Alto:${f.alto} | Ancho:${f.ancho} | Cant:${f.qty}`, margin, y);
       y += 10;
     });
-  } else {
-    doc.text('No hay ventanas registradas.', margin, y); y += 12;
   }
 
   y += 10;
-  // resumen por perfil
   doc.setFontSize(11); doc.text('Resumen por perfil (tiras):', margin, y); y += 12;
   doc.setFontSize(9);
   Object.entries(data.resumenPorPerfil || {}).forEach(([p,n])=>{
@@ -397,98 +335,60 @@ function exportPdf(){
   });
 
   y += 8;
-  // herrajes
-  if(Object.keys(data.herrajes || {}).length){
-    doc.setFontSize(11); doc.text('Herrajes (unidades):', margin, y); y += 12;
-    doc.setFontSize(9);
-    Object.entries(data.herrajes).forEach(([h,n])=>{
-      if(y > pageH - 100){ doc.addPage(); y = margin; }
-      doc.text(`${h} = ${n} unidades`, margin, y);
-      y += 10;
-    });
-    y += 8;
-  }
+  doc.setFontSize(11); doc.text('Diagramas de cortes por perfil:', margin, y); y += 10;
 
-  // diagramas por perfil (cada tira como barra horizontal)
-  doc.setFontSize(12); doc.text('Diagramas de cortes por perfil (colores por ventana):', margin, y); y += 14;
-  const barMaxWidth = Math.min(pageW - margin*2 - 160, 900);
-  const barH = 14;
-  const gap = 18;
-
-  const perfilCodes = Object.keys(data.tirasPorPerfil || {});
-  for(const perfil of perfilCodes){
+  Object.entries(data.tirasPorPerfil).forEach(([perfil, tiras])=>{
+    doc.setFontSize(11);
     if(y > pageH - 120){ doc.addPage(); y = margin; }
-    doc.setFontSize(11); doc.setTextColor(0,0,0);
-    doc.text(`${perfil} — Tiras: ${ (data.tirasPorPerfil[perfil]||[]).length }`, margin, y); y += 10;
-    const tiras = data.tirasPorPerfil[perfil] || [];
-    if(tiras.length === 0){
-      doc.setFontSize(9); doc.text('No hay piezas para este perfil.', margin+10, y); y += 14;
-      continue;
-    }
-    for(let ti=0; ti<tiras.length; ti++){
-      if(y > pageH - 80){ doc.addPage(); y = margin; }
-      const tira = tiras[ti];
-      // escala por largo de esta tira
-      const scale = (tira.largo && tira.largo>0) ? (barMaxWidth / tira.largo) : (barMaxWidth / 6000);
-      let x = margin + 120; const baseY = y;
-      // border
-      doc.setDrawColor(120);
-      doc.rect(x, baseY, barMaxWidth, barH);
-      // dibujar cortes
-      for(let ci=0; ci<tira.cortes.length; ci++){
-        const corte = tira.cortes[ci];
-        const win = (tira.winRefs && tira.winRefs[ci]) ? tira.winRefs[ci] : 'SinID';
-        const color = colorForId(String(win));
-        const seg = (corte + MERMA) * scale;
-        doc.setFillColor(color[0], color[1], color[2]);
-        doc.rect(x, baseY, seg, barH, 'F');
-        // etiqueta: "V1 (MTG1399) = 1200 mm"
-        const etiqueta = `${win} (${perfil}) = ${corte} mm`;
-        doc.setFontSize(8);
-        // si el segmento es suficientemente ancho, escribir dentro; si no, escribir encima
-        if(seg > 36){
-          doc.setTextColor(255,255,255);
-          doc.text(etiqueta, x + seg/2, baseY + barH/2 + 3, { align: 'center' });
-        } else {
-          doc.setTextColor(220,220,220);
-          doc.text(etiqueta, x + seg/2, baseY - 2, { align: 'center' });
-        }
-        x += seg;
-      }
-      // sobrante
-      if(tira.sobrante > 0){
-        const sobraW = tira.sobrante * scale;
-        doc.setFillColor(110,110,110);
-        doc.rect(x, baseY, sobraW, barH, 'F');
-        doc.setFontSize(8); doc.setTextColor(20,20,20);
-        doc.text(`Sobrante ${tira.sobrante} mm`, x + Math.max(10, sobraW/2), baseY + barH/2 + 3, {align:'center'});
-      }
-      // left label
-      doc.setFontSize(9); doc.setTextColor(200,200,200);
-      doc.text(`Tira ${ti+1}`, margin + 20, baseY + barH/2 + 3);
-      y += gap;
-    }
-    y += 8;
-  }
+    doc.text(perfil, margin, y);
+    y += 6;
+    tiras.forEach((t, i)=>{
+      if(y > pageH - 60){ doc.addPage(); y = margin; }
+      const x0 = margin + 10;
+      const barW = pageW - 2*margin - 120;
+      const scale = barW / t.largo;
+      const barY = y + 4;
+      const barH = 8;
+      let x = x0;
+      t.cortes.forEach((len, idx)=>{
+        const segW = len * scale;
+        const [r,g,b] = colorForId(t.winRefs[idx]);
+        doc.setFillColor(r,g,b);
+        doc.rect(x, barY, segW, barH, 'F');
+        doc.setFontSize(6);
+        doc.setTextColor(255,255,255);
+        doc.text(`${t.winRefs[idx]} ${len}`, x + segW/2, barY + barH - 1, {align:'center'});
+        x += segW + MERMA * scale;
+      });
+      const sobrW = t.sobrante * scale;
+      doc.setFillColor(60,60,60);
+      doc.rect(x, barY, sobrW, barH, 'F');
 
-  // fichero nombre automático
-  const proj = sanitizeFilename(data.proyecto || 'Proyecto');
-  const now = new Date();
-  const stamp = now.getFullYear().toString() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '_' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
-  const filename = `Cortes_${proj}_${stamp}.pdf`;
+      // 🔹 NUEVO: Agregar largo total de la tira
+      doc.setFontSize(7);
+      doc.setTextColor(180,255,180);
+      doc.text(`Largo total: ${t.largo} mm`, pageW - margin - 80, y + barH + 8);
+
+      doc.setTextColor(200,200,200);
+      doc.text(`Tira ${i+1} (Sobrante ${t.sobrante} mm)`, margin+10, y + barH + 8);
+      y += 16;
+    });
+    y += 6;
+  });
+
+  const filename = sanitizeFilename(`${data.proyecto || 'reporte'}_${new Date().toISOString().slice(0,10)}.pdf`);
   doc.save(filename);
+  alert('PDF generado con éxito.');
 }
 
-/* ----------------- BORRAR TODO ----------------- */
 function borrarTodo(){
-  if(!confirm('Borrar todas las filas y resultados?')) return;
-  document.querySelector('#tableWindows tbody').innerHTML = '';
-  document.getElementById('summary').innerHTML = 'Presiona "Calcular resumen" para ver totales por perfil.';
-  lastResults = null;
+  if(confirm('¿Borrar todas las filas y resultados?')){
+    document.querySelector('#tableWindows tbody').innerHTML='';
+    document.getElementById('summary').innerHTML='';
+    lastResults=null;
+  }
 }
-
-/* ----------------- inicio: nada más cargar ----------------- */
-document.addEventListener('DOMContentLoaded', ()=>{ /* nada más */ });
 </script>
 </body>
 </html>
+
