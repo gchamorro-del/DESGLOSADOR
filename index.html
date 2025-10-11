@@ -170,7 +170,60 @@ function addRow(){
   tbody.appendChild(tr);
 }
 
-/* ----------------- FUNCIONES DE CÁLCULO Y PDF ----------------- */
+/* ----------------- FUNCIÓN CALCULAR ----------------- */
+function calcular(){
+  const filas = [...document.querySelectorAll('#tableWindows tbody tr')];
+  if(filas.length === 0){ alert('Agrega al menos una ventana'); return; }
+
+  const data = [];
+  filas.forEach(tr=>{
+    const tds = tr.querySelectorAll('td');
+    const winId = tds[0].querySelector('input').value.trim() || '-';
+    const alto = parseFloat(tds[1].querySelector('input').value) || 0;
+    const ancho = parseFloat(tds[2].querySelector('input').value) || 0;
+    const qty = parseInt(tds[3].querySelector('input').value) || 1;
+    const sistema = tds[4].querySelector('select').value;
+    const largo = parseFloat(tds[5].querySelector('input').value) || 6000;
+    data.push({winId, alto, ancho, qty, sistema, largo});
+  });
+
+  const resumenPorPerfil = {};
+  const tirasPorPerfil = {};
+
+  data.forEach(item=>{
+    const sys = SYSTEMS[item.sistema];
+    if(!sys) return;
+    Object.entries(sys).forEach(([perfil, def])=>{
+      if(def.tipo === "herraje") return;
+      const totalPerfiles = (def.altos * item.alto + def.anchos * item.ancho) * item.qty;
+      const largoTira = item.largo - MERMA;
+      const cantidadTiras = Math.ceil(totalPerfiles / largoTira);
+      resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + cantidadTiras;
+      tirasPorPerfil[perfil] = tirasPorPerfil[perfil] || [];
+      tirasPorPerfil[perfil].push({ ventana:item.winId, largo:item.largo });
+    });
+  });
+
+  const htmlResumen = Object.entries(resumenPorPerfil)
+    .map(([perfil,n])=>`<div>${perfil}: <b>${n}</b> tiras</div>`)
+    .join('') || '<i>No se encontraron perfiles</i>';
+
+  document.getElementById('summary').innerHTML = `
+    <h4 style="color:var(--accent)">Resumen de cortes:</h4>
+    ${htmlResumen}
+    <p class="muted">Listo para exportar a PDF.</p>
+  `;
+
+  lastResults = {
+    proyecto: document.getElementById('projectName').value,
+    usuario: currentUser,
+    filas: data,
+    resumenPorPerfil,
+    tirasPorPerfil
+  };
+}
+
+/* ----------------- FUNCIÓN EXPORT PDF ----------------- */
 function exportPdf(){
   if(!lastResults){ alert('Calcula primero antes de exportar.'); return; }
   const data = lastResults;
@@ -238,15 +291,13 @@ function exportPdf(){
   doc.save(filename);
 }
 
+/* ----------------- LIMPIAR ----------------- */
 function borrarTodo(){
   if(!confirm('Borrar todas las filas y resultados?')) return;
   document.querySelector('#tableWindows tbody').innerHTML = '';
   document.getElementById('summary').innerHTML = 'Presiona "Calcular resumen" para ver totales por perfil.';
   lastResults = null;
 }
-
-document.addEventListener('DOMContentLoaded', ()=>{});
 </script>
 </body>
 </html>
-
