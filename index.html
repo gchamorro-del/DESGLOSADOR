@@ -464,22 +464,20 @@ function exportPdf(){
         doc.text(`Sobrante ${tira.sobrante} mm`, x + Math.max(10, sobraW/2), baseY + barH/2 + 3, {align:'center'});
       }
 
-      // etiqueta "Tira X"
-      doc.setFontSize(9); doc.setTextColor(0,0,0);
-      doc.text(`Tira ${ti+1}`, margin + 20, baseY + barH/2 + 3);
+     // Etiqueta lateral izquierda "Tira X"
+doc.setFontSize(9);
+doc.setTextColor(0,0,0);
+doc.text(`Tira ${ti+1}`, margin + 20, baseY + barH/2 + 3);
 
-      // NUEVO: medida total de la tira debajo de la barra
-      if (tira.largo && tira.largo > 0) {
-        doc.setFontSize(8);
-        doc.setTextColor(255, 0, 0); // rojo
-        doc.text(`Tira total: ${tira.largo} mm`, margin + 120 + barMaxWidth / 2, baseY + barH + 14, { align: 'center' });
-      }
-
-      y += gap; // mover la posición vertical para la siguiente barra
-    } // ← cierra el for de tiras
-    y += 8;
-  } // ← cierra el for de perfilCodes
-
+// Mostrar debajo de la barra el largo real de la tira (tal como se ingresó)
+if (tira.largo && tira.largo > 0) {
+  const barraInicioX = margin + 120;              // inicio de la barra
+  const barraCentroX = barraInicioX + (barMaxWidth / 2); // centro horizontal
+  const textoY = baseY + barH + 14;               // posición vertical debajo de la barra
+  doc.setFontSize(8);
+  doc.setTextColor(50,50,50);                     // gris técnico
+  doc.text(`Largo de tira usada: ${tira.largo} mm`, barraCentroX, textoY, { align: 'center' });
+}
   // ✅ guardar PDF aquí, FUERA de los bucles
   const proj = sanitizeFilename(data.proyecto || 'Proyecto');
   const now = new Date();
