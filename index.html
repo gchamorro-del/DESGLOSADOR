@@ -468,19 +468,27 @@ function exportPdf(){
       doc.setFontSize(9); doc.setTextColor(0,0,0);
       doc.text(`Tira ${ti+1}`, margin + 20, baseY + barH/2 + 3);
 
-// NUEVO: medida total de la tira debajo de la barra
-if (tira.largo && tira.largo > 0) {
-  doc.setFontSize(8);
-  doc.setTextColor(255, 0, 0); // gris opcional para no resaltar demasiado
-  doc.text(`Tira total: ${tira.largo} mm`, x + barMaxWidth/2, baseY + barH + 14, { align: 'center' });
-}
-  // guardar
+      // NUEVO: medida total de la tira debajo de la barra
+      if (tira.largo && tira.largo > 0) {
+        doc.setFontSize(8);
+        doc.setTextColor(255, 0, 0); // rojo
+        doc.text(`Tira total: ${tira.largo} mm`, margin + 120 + barMaxWidth / 2, baseY + barH + 14, { align: 'center' });
+      }
+
+      y += gap; // mover la posición vertical para la siguiente barra
+    } // ← cierra el for de tiras
+    y += 8;
+  } // ← cierra el for de perfilCodes
+
+  // ✅ guardar PDF aquí, FUERA de los bucles
   const proj = sanitizeFilename(data.proyecto || 'Proyecto');
   const now = new Date();
-  const stamp = now.getFullYear().toString() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '_' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+  const stamp = now.getFullYear().toString() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') +
+    '_' + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
   const filename = `Cortes_${proj}_${stamp}.pdf`;
   doc.save(filename);
-}
+} // ← cierre correcto de exportPdf()
+
 /* ----------------- BORRAR TODO ----------------- */
 function borrarTodo(){
   if(!confirm('Borrar todas las filas y resultados?')) return;
