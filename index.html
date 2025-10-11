@@ -443,7 +443,7 @@ function exportPdf(){
         const seg = (corte + MERMA) * scale;
         doc.setFillColor(color[0], color[1], color[2]);
         doc.rect(x, baseY, seg, barH, 'F');
-        const etiqueta = `${win} (${perfil}) = ${corte} mm`;
+        const etiqueta = `${win} - ${corte} mm`;
         doc.setFontSize(8);
         if(seg > 36){
           doc.setTextColor(255,255,255);
