@@ -486,14 +486,6 @@ function exportPdf(){
   const filename = `Cortes_${proj}_${stamp}.pdf`;
   doc.save(filename);
 }
-  // fichero nombre automático
-  const proj = sanitizeFilename(data.proyecto || 'Proyecto');
-  const now = new Date();
-  const stamp = now.getFullYear().toString() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '_' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
-  const filename = `Cortes_${proj}_${stamp}.pdf`;
-  doc.save(filename);
-}
-
 /* ----------------- BORRAR TODO ----------------- */
 function borrarTodo(){
   if(!confirm('Borrar todas las filas y resultados?')) return;
