@@ -119,7 +119,7 @@ const PASSWORD = "1234";
 const MERMA = 50;
 const SYSTEMS = {
   "Corrediza Europea": {
-    "MTG1399": { altos: 2, anchos: 2 },
+    "MTG1399": { altos: 2, anchos: 2, dividirAncho: true }, // sólo este divide el ancho
     "MTG2177": { altos: 4, anchos: 2 },
     "MTG2176": { altos: 2, anchos: 0 },
   },
@@ -135,13 +135,13 @@ const SYSTEMS = {
 let lastResults = null;
 let currentUser = null;
 
+// --- Utilidades de color ---
 function colorForId(id){
   const hash = [...id].reduce((a,c)=>a+c.charCodeAt(0),0);
   const hue = hash % 360;
   const rgb = hslToRgb(hue/360,0.6,0.5);
   return rgb;
 }
-
 function hslToRgb(h, s, l){
   let r, g, b;
   if(s == 0){ r = g = b = l; }
@@ -162,6 +162,7 @@ function hslToRgb(h, s, l){
   return [Math.round(r*255),Math.round(g*255),Math.round(b*255)];
 }
 
+// --- LOGIN ---
 function doLogin(){
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
@@ -174,6 +175,7 @@ function doLogin(){
   addRow();
 }
 
+// --- AGREGAR FILA ---
 function addRow(){
   const tbody = document.querySelector('#tableWindows tbody');
   const tr = document.createElement('tr');
@@ -189,6 +191,7 @@ function addRow(){
   tbody.appendChild(tr);
 }
 
+// --- CALCULAR ---
 function calcular(){
   const filas = [...document.querySelectorAll('#tableWindows tbody tr')];
   if(filas.length === 0){ alert('Agrega al menos una ventana'); return; }
@@ -196,22 +199,14 @@ function calcular(){
   const data = [];
   filas.forEach(tr=>{
     const tds = tr.querySelectorAll('td');
-    const f = {
+    data.push({
       winId: tds[0].querySelector('input').value.trim() || '-',
       alto: parseFloat(tds[1].querySelector('input').value)||0,
       ancho: parseFloat(tds[2].querySelector('input').value)||0,
       qty: parseInt(tds[3].querySelector('input').value)||1,
       sistema: tds[4].querySelector('select').value,
       largo: parseFloat(tds[5].querySelector('input').value)||6000
-    };
-
-    // --- Ajuste por tipo de sistema (si es corrediza, divide ancho entre 2) ---
-    if (f.sistema && f.sistema.toLowerCase().includes("corrediza")) {
-      console.log(`⚙️ Ajuste aplicado a ${f.winId}: ancho dividido entre 2 → ${f.ancho / 2}`);
-      f.ancho = f.ancho / 2;
-    }
-
-    data.push(f);
+    });
   });
 
   const resumenPorPerfil = {};
@@ -220,10 +215,15 @@ function calcular(){
   data.forEach(item=>{
     const sys = SYSTEMS[item.sistema];
     if(!sys) return;
+
     Object.entries(sys).forEach(([perfil, def])=>{
       const cortes = [];
       for(let i=0;i<def.altos;i++) cortes.push(item.alto);
-      for(let j=0;j<def.anchos;j++) cortes.push(item.ancho);
+
+      // aplicar división de ancho solo si el perfil lo requiere
+      const anchoCorte = def.dividirAncho ? item.ancho / 2 : item.ancho;
+      for(let j=0;j<def.anchos;j++) cortes.push(anchoCorte);
+
       const totalCortes = cortes.length * item.qty;
       const largoTira = item.largo - MERMA;
       const cortesPorTira = [];
@@ -257,18 +257,21 @@ function calcular(){
     });
   });
 
-  lastResults = { 
-    proyecto: document.getElementById('projectName').value, 
-    usuario: currentUser, 
-    filas: data, 
-    resumenPorPerfil, 
-    tirasPorPerfil 
-  };
-
-  document.getElementById('summary').innerText = '✅ Resumen calculado correctamente. Listo para exportar a PDF.';
+  lastResults = { proyecto: document.getElementById('projectName').value, usuario: currentUser, filas: data, resumenPorPerfil, tirasPorPerfil };
+  
+  // --- Mostrar resumen en pantalla principal ---
+  let html = `<b>Resumen de Ventanas:</b><br>`;
+  data.forEach(f=>{
+    html += `${f.winId} = ${f.sistema} — Ancho: ${f.ancho} mm, Alto: ${f.alto} mm, Cant: ${f.qty}<br>`;
+  });
+  html += `<br><b>Tiras por perfil:</b><br>`;
+  Object.entries(resumenPorPerfil).forEach(([perfil,cant])=>{
+    html += `${perfil}: ${cant} tiras<br>`;
+  });
+  document.getElementById('summary').innerHTML = html;
 }
 
-
+// --- EXPORTAR PDF ---
 function exportPdf(){
   if(!lastResults){ alert('Calcule primero.'); return; }
   const { jsPDF } = window.jspdf;
@@ -291,9 +294,8 @@ function exportPdf(){
   doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 160, y);
   y += 20;
 
-  // Resumen de ventanas
+  // --- Resumen general ---
   doc.setFontSize(11);
-  doc.setTextColor(0,0,0);
   doc.text('RESUMEN DE VENTANAS', margin, y);
   y += 12;
   doc.setFontSize(9);
@@ -363,6 +365,7 @@ function exportPdf(){
   doc.save(`Cortes_${Date.now()}.pdf`);
 }
 
+// --- BORRAR TODO ---
 function borrarTodo(){
   if(!confirm('¿Borrar todo?')) return;
   document.querySelector('#tableWindows tbody').innerHTML='';
@@ -370,5 +373,3 @@ function borrarTodo(){
   document.getElementById('summary').innerText='Presiona "Calcular resumen" para ver totales por perfil.';
 }
 </script>
-</body>
-</html>
