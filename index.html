@@ -192,7 +192,15 @@ function addRow(){
 function calcular(){
   const filas = [...document.querySelectorAll('#tableWindows tbody tr')];
   if(filas.length === 0){ alert('Agrega al menos una ventana'); return; }
+// --- Ajuste por tipo de sistema antes de calcular cortes ---
+let alto = f.alto;
+let ancho = f.ancho;
 
+  // Si el sistema es corredizo, se divide el ancho entre 2
+if (f.sistema && f.sistema.toLowerCase().includes("corrediza")) {
+  ancho = ancho / 2;
+  console.log(`⚙️ Ajuste aplicado a ${f.winId}: ancho dividido entre 2 → ${ancho}`);
+}
   const data = [];
   filas.forEach(tr=>{
     const tds = tr.querySelectorAll('td');
