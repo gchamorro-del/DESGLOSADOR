@@ -313,6 +313,16 @@ function exportPdf(){
 
   const perfiles = Object.keys(lastResults.tirasPorPerfil || {});
   perfiles.forEach(perfil=>{
+      // 🔹 Saltar perfiles que son herrajes (no se grafican)
+  let esHerraje = false;
+  for (const sistema in SYSTEMS) {
+    if (SYSTEMS[sistema][perfil]?.tipo === "herraje") {
+      esHerraje = true;
+      break;
+    }
+  }
+  if (esHerraje) return; // ← Evita que se dibuje este perfil
+
     if(y > pageH - 120){ doc.addPage(); y = margin; }
     doc.setFontSize(11);
     doc.text(`${perfil} — Diagramas de corte`, margin, y);
