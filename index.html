@@ -192,26 +192,26 @@ function addRow(){
 function calcular(){
   const filas = [...document.querySelectorAll('#tableWindows tbody tr')];
   if(filas.length === 0){ alert('Agrega al menos una ventana'); return; }
-// --- Ajuste por tipo de sistema antes de calcular cortes ---
-let alto = f.alto;
-let ancho = f.ancho;
 
-  // Si el sistema es corredizo, se divide el ancho entre 2
-if (f.sistema && f.sistema.toLowerCase().includes("corrediza")) {
-  ancho = ancho / 2;
-  console.log(`⚙️ Ajuste aplicado a ${f.winId}: ancho dividido entre 2 → ${ancho}`);
-}
   const data = [];
   filas.forEach(tr=>{
     const tds = tr.querySelectorAll('td');
-    data.push({
+    const f = {
       winId: tds[0].querySelector('input').value.trim() || '-',
       alto: parseFloat(tds[1].querySelector('input').value)||0,
       ancho: parseFloat(tds[2].querySelector('input').value)||0,
       qty: parseInt(tds[3].querySelector('input').value)||1,
       sistema: tds[4].querySelector('select').value,
       largo: parseFloat(tds[5].querySelector('input').value)||6000
-    });
+    };
+
+    // --- Ajuste por tipo de sistema (si es corrediza, divide ancho entre 2) ---
+    if (f.sistema && f.sistema.toLowerCase().includes("corrediza")) {
+      console.log(`⚙️ Ajuste aplicado a ${f.winId}: ancho dividido entre 2 → ${f.ancho / 2}`);
+      f.ancho = f.ancho / 2;
+    }
+
+    data.push(f);
   });
 
   const resumenPorPerfil = {};
@@ -257,9 +257,17 @@ if (f.sistema && f.sistema.toLowerCase().includes("corrediza")) {
     });
   });
 
-  lastResults = { proyecto: document.getElementById('projectName').value, usuario: currentUser, filas: data, resumenPorPerfil, tirasPorPerfil };
-  document.getElementById('summary').innerText = 'Resumen calculado correctamente. Listo para exportar a PDF.';
+  lastResults = { 
+    proyecto: document.getElementById('projectName').value, 
+    usuario: currentUser, 
+    filas: data, 
+    resumenPorPerfil, 
+    tirasPorPerfil 
+  };
+
+  document.getElementById('summary').innerText = '✅ Resumen calculado correctamente. Listo para exportar a PDF.';
 }
+
 
 function exportPdf(){
   if(!lastResults){ alert('Calcule primero.'); return; }
