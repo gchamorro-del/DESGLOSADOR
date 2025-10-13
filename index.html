@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"/>
-<title>Optimizador Técnico de Cortes (Final)</title>
+<title>Optimizador Técnico de Cortes (Final Mejorado)</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -116,7 +116,6 @@
 </div>
 
 <script>
-/* ----------------- CONFIG ----------------- */
 const PASSWORD = "1234";
 const MERMA = 150;
 const SYSTEMS = {
@@ -136,12 +135,35 @@ const SYSTEMS = {
   "Otro": {}
 };
 
-/* ----------------- ESTADO ----------------- */
 let lastResults = null;
 let currentUser = null;
 
-/* ----------------- FUNCIONES ----------------- */
-function sanitizeFilename(s){ return s.replace(/[^a-z0-9_\-]/gi,'_').substring(0,80); }
+function colorForId(id){
+  const hash = [...id].reduce((a,c)=>a+c.charCodeAt(0),0);
+  const hue = hash % 360;
+  const rgb = hslToRgb(hue/360,0.6,0.5);
+  return rgb;
+}
+
+function hslToRgb(h, s, l){
+  let r, g, b;
+  if(s == 0){ r = g = b = l; }
+  else{
+    const hue2rgb = (p,q,t)=>{
+      if(t<0)t+=1;if(t>1)t-=1;
+      if(t<1/6)return p+(q-p)*6*t;
+      if(t<1/2)return q;
+      if(t<2/3)return p+(q-p)*(2/3-t)*6;
+      return p;
+    }
+    const q = l < 0.5 ? l*(1+s) : l+s-l*s;
+    const p = 2*l-q;
+    r = hue2rgb(p,q,h+1/3);
+    g = hue2rgb(p,q,h);
+    b = hue2rgb(p,q,h-1/3);
+  }
+  return [Math.round(r*255),Math.round(g*255),Math.round(b*255)];
+}
 
 function doLogin(){
   const u = document.getElementById('loginUser').value.trim();
@@ -170,7 +192,6 @@ function addRow(){
   tbody.appendChild(tr);
 }
 
-/* ----------------- FUNCIÓN CALCULAR ----------------- */
 function calcular(){
   const filas = [...document.querySelectorAll('#tableWindows tbody tr')];
   if(filas.length === 0){ alert('Agrega al menos una ventana'); return; }
@@ -195,12 +216,41 @@ function calcular(){
     if(!sys) return;
     Object.entries(sys).forEach(([perfil, def])=>{
       if(def.tipo === "herraje") return;
-      const totalPerfiles = (def.altos * item.alto + def.anchos * item.ancho) * item.qty;
+      const cortes = [];
+      for(let i=0;i<def.altos;i++) cortes.push(item.alto);
+      for(let j=0;j<def.anchos;j++) cortes.push(item.ancho);
+      const totalCortes = cortes.length * item.qty;
+
       const largoTira = item.largo - MERMA;
-      const cantidadTiras = Math.ceil(totalPerfiles / largoTira);
-      resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + cantidadTiras;
+      const cortesPorTira = [];
+      let actual = 0, suma = 0;
+
+      for(let i=0;i<totalCortes;i++){
+        const valor = cortes[i % cortes.length];
+        if(suma + valor <= largoTira){
+          cortesPorTira[actual] = cortesPorTira[actual] || [];
+          cortesPorTira[actual].push(valor);
+          suma += valor;
+        }else{
+          actual++;
+          suma = valor;
+          cortesPorTira[actual] = [valor];
+        }
+      }
+
+      resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + cortesPorTira.length;
       tirasPorPerfil[perfil] = tirasPorPerfil[perfil] || [];
-      tirasPorPerfil[perfil].push({ ventana:item.winId, largo:item.largo });
+
+      cortesPorTira.forEach((arr)=>{
+        const usado = arr.reduce((a,b)=>a+b,0);
+        const sobrante = largoTira - usado;
+        tirasPorPerfil[perfil].push({
+          largo:item.largo,
+          cortes:arr,
+          winRefs:arr.map(()=>item.winId),
+          sobrante
+        });
+      });
     });
   });
 
@@ -214,197 +264,92 @@ function calcular(){
     <p class="muted">Listo para exportar a PDF.</p>
   `;
 
-  lastResults = {
-    proyecto: document.getElementById('projectName').value,
-    usuario: currentUser,
-    filas: data,
-    resumenPorPerfil,
-    tirasPorPerfil
-  };
+  lastResults = { proyecto: document.getElementById('projectName').value, usuario: currentUser, filas: data, resumenPorPerfil, tirasPorPerfil };
 }
 
-/* ----------------- EXPORTAR PDF (CORREGIDO / LANDSCAPE, tolerante a tiras sin cortes) ----------------- */
 function exportPdf(){
   if(!lastResults){ alert('Calcula primero antes de exportar.'); return; }
-  const data = lastResults;
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'landscape', unit:'pt', format:'a4' });
+  const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 36;
   let y = margin;
 
-  // Encabezado principal
   doc.setFontSize(16);
   doc.setTextColor(20,220,180);
   doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
   y += 18;
 
-  // Datos generales
   doc.setFontSize(10);
   doc.setTextColor(0,0,0);
-  doc.text(`Proyecto: ${data.proyecto || '-'}`, margin, y);
-  doc.text(`Usuario: ${data.usuario || '-'}`, margin + 300, y);
+  doc.text(`Proyecto: ${lastResults.proyecto || '-'}`, margin, y);
+  doc.text(`Usuario: ${lastResults.usuario || '-'}`, margin+300, y);
   doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 160, y);
-  y += 16;
-
-  // Listado de ventanas
-  doc.setFontSize(11);
-  doc.text('Listado de ventanas ingresadas:', margin, y);
-  y += 12;
-  doc.setFontSize(9);
-  if(Array.isArray(data.filas) && data.filas.length){
-    data.filas.forEach((f,i)=>{
-      if(y > pageH - 100){ doc.addPage(); y = margin; }
-      // nota: en tus datos de filas el campo se llama 'largo' (no 'largoTira'), por eso uso f.largo
-      doc.text(`${i+1}. ${f.winId} | ${f.sistema} | Alto:${f.alto} | Ancho:${f.ancho} | Cant:${f.qty} | Largo tira:${f.largo || '-' } mm`, margin, y);
-      y += 10;
-    });
-  } else {
-    doc.text('No hay ventanas registradas.', margin, y);
-    y += 12;
-  }
-
-  y += 10;
-
-  // Resumen por perfil
-  doc.setFontSize(11);
-  doc.text('Resumen por perfil (tiras):', margin, y);
-  y += 12;
-  doc.setFontSize(9);
-  Object.entries(data.resumenPorPerfil || {}).forEach(([p,n])=>{
-    if(y > pageH - 100){ doc.addPage(); y = margin; }
-    doc.text(`${p} = ${n} tiras`, margin, y);
-    y += 10;
-  });
-
-  y += 8;
-
-  // Herrajes (si existen)
-  if(Object.keys(data.herrajes || {}).length){
-    doc.setFontSize(11);
-    doc.text('Herrajes (unidades):', margin, y);
-    y += 12;
-    doc.setFontSize(9);
-    Object.entries(data.herrajes).forEach(([h,n])=>{
-      if(y > pageH - 100){ doc.addPage(); y = margin; }
-      doc.text(`${h} = ${n} unidades`, margin, y);
-      y += 10;
-    });
-    y += 8;
-  }
-
-  // Diagramas de cortes
-  doc.setFontSize(12);
-  doc.text('Diagramas de cortes por perfil (colores por ventana):', margin, y);
-  y += 14;
+  y += 20;
 
   const barMaxWidth = Math.min(pageW - margin*2 - 160, 900);
   const barH = 14;
-  const gap = 30;
+  const gap = 36;
 
-  const perfilCodes = Object.keys(data.tirasPorPerfil || {});
-  for(const perfil of perfilCodes){
+  const perfiles = Object.keys(lastResults.tirasPorPerfil || {});
+  perfiles.forEach(perfil=>{
     if(y > pageH - 120){ doc.addPage(); y = margin; }
     doc.setFontSize(11);
-    doc.setTextColor(0,0,0);
-    doc.text(`${perfil} — Tiras: ${(data.tirasPorPerfil[perfil]||[]).length}`, margin, y);
+    doc.text(`${perfil} — Diagramas de corte`, margin, y);
     y += 10;
 
-    const tiras = data.tirasPorPerfil[perfil] || [];
-    if(tiras.length === 0){
-      doc.setFontSize(9);
-      doc.text('No hay piezas para este perfil.', margin+10, y);
-      y += 14;
-      continue;
-    }
-
-    for(let ti=0; ti<tiras.length; ti++){
+    (lastResults.tirasPorPerfil[perfil]||[]).forEach((tira,ti)=>{
       if(y > pageH - 100){ doc.addPage(); y = margin; }
-      const tira = tiras[ti];
-
-      // si la estructura espera cortes, ok; si no, la tratamos como "tira vacía con solo largo"
-      const cortes = Array.isArray(tira.cortes) ? tira.cortes : [];
-      const winRefs = Array.isArray(tira.winRefs) ? tira.winRefs : [];
-
-      const scale = (tira.largo && tira.largo>0) ? (barMaxWidth / tira.largo) : (barMaxWidth / 6000);
+      const scale = barMaxWidth / tira.largo;
       let x = margin + 120;
       const baseY = y;
 
-      // Marco de la barra
-      doc.setDrawColor(120);
+      doc.setDrawColor(100);
       doc.rect(x, baseY, barMaxWidth, barH);
 
-      // Si hay cortes definidos, dibujarlos; si no, solo dejamos la barra vacía
-      if(cortes.length > 0){
-        for(let ci=0; ci<cortes.length; ci++){
-          const corte = cortes[ci];
-          const win = winRefs[ci] || 'SinID';
-          const color = colorForId(String(win));
-          const seg = (Number(corte) + MERMA) * scale;
-          doc.setFillColor(color[0], color[1], color[2]);
-          doc.rect(x, baseY, seg, barH, 'F');
+      for(let ci=0; ci<tira.cortes.length; ci++){
+        const corte = tira.cortes[ci];
+        const win = tira.winRefs[ci];
+        const color = colorForId(win);
+        const seg = corte * scale;
 
-          const etiqueta = `${win} = ${corte} mm`;
-          doc.setFontSize(8);
-          if(seg > 36){
-            doc.setTextColor(255,255,255);
-            doc.text(etiqueta, x + seg/2, baseY + barH/2 + 3, { align: 'center' });
-          } else {
-            doc.setTextColor(0,0,0);
-            doc.text(etiqueta, x + seg/2, baseY - 2, { align: 'center' });
-          }
+        doc.setFillColor(color[0],color[1],color[2]);
+        doc.rect(x, baseY, seg, barH, 'F');
 
-          x += seg;
-        }
-      } // end if cortes
-
-      // Sobrante (si existe)
-      if(tira.sobrante){
-        const sobraW = Number(tira.sobrante) * scale;
-        if(sobraW > 0){
-          doc.setFillColor(110,110,110);
-          doc.rect(x, baseY, sobraW, barH, 'F');
-          doc.setFontSize(8);
-          doc.setTextColor(0,0,0);
-          doc.text(`Sobrante ${tira.sobrante} mm`, x + Math.max(10, sobraW/2), baseY + barH/2 + 3, {align:'center'});
-        }
-      }
-
-      // Etiqueta lateral de la tira
-      doc.setFontSize(9);
-      doc.setTextColor(0,0,0);
-      doc.text(`Tira ${ti+1}`, margin + 20, baseY + barH/2 + 3);
-
-      // Mostrar debajo de la barra el largo real de la tira (centrado respecto a la barra)
-      if (tira.largo && tira.largo > 0) {
-        const barraInicioX = margin + 120;
-        const barraCentroX = barraInicioX + (barMaxWidth / 2);
-        const textoY = baseY + barH + 14;
+        const etiqueta = `${win} - ${corte} mm`;
         doc.setFontSize(8);
-        doc.setTextColor(80,80,80);
-        doc.text(`Tira utilizada: ${tira.largo} mm`, barraCentroX, textoY, { align: 'center' });
+        doc.setTextColor(255,255,255);
+        doc.text(etiqueta, x + seg/2, baseY + barH/2 + 3, {align:'center'});
+        x += seg;
       }
 
+      if(tira.sobrante > 0){
+        const sobraW = tira.sobrante * scale;
+        doc.setFillColor(120,120,120);
+        doc.rect(x, baseY, sobraW, barH, 'F');
+        doc.setFontSize(8);
+        doc.setTextColor(0,0,0);
+        doc.text(`Sobrante ${tira.sobrante} mm`, x + sobraW/2, baseY + barH/2 + 3, {align:'center'});
+      }
+
+      doc.setFontSize(8);
+      doc.setTextColor(0,0,0);
+      doc.text(`Tira utilizada: ${tira.largo} mm`, margin + barMaxWidth/2, baseY + barH + 14, {align:'center'});
       y += gap;
-    }
+    });
+    y += 10;
+  });
 
-    y += 8;
-  }
-
-  // Guardar archivo fuera de los bucles
-  const proj = sanitizeFilename(data.proyecto || 'Proyecto');
-  const now = new Date();
-  const stamp = now.getFullYear().toString() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '_' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
-  const filename = `Cortes_${proj}_${stamp}.pdf`;
+  const filename = `Cortes_${(lastResults.proyecto||'Proyecto').replace(/\W+/g,'_')}_${Date.now()}.pdf`;
   doc.save(filename);
 }
-/* ----------------- LIMPIAR ----------------- */
+
 function borrarTodo(){
   if(!confirm('Borrar todas las filas y resultados?')) return;
-  document.querySelector('#tableWindows tbody').innerHTML = '';
-  document.getElementById('summary').innerHTML = 'Presiona "Calcular resumen" para ver totales por perfil.';
-  lastResults = null;
+  document.querySelector('#tableWindows tbody').innerHTML='';
+  document.getElementById('summary').innerHTML='Presiona "Calcular resumen" para ver totales por perfil.';
+  lastResults=null;
 }
 </script>
 </body>
