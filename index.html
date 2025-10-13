@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"/>
-<title>Optimizador Técnico de Cortes (Final Mejorado)</title>
+<title>Optimizador Técnico de Cortes (Final con Resumen y Etiquetas de Tira)</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -93,18 +93,17 @@
       </div>
 
       <h3 style="margin-top:14px;color:var(--accent)">Ventanas (ingreso manual)</h3>
-      <p class="small muted">Ingrese ID de ventana (V1, V2...), Alto, Ancho, Cantidad y seleccione el sistema por fila.</p>
 
       <table id="tableWindows">
         <thead>
           <tr>
-            <th style="width:90px">ID Ventana</th>
+            <th>ID Ventana</th>
             <th>Alto (mm)</th>
             <th>Ancho (mm)</th>
-            <th style="width:110px">Cantidad</th>
-            <th style="width:220px">Sistema</th>
-            <th style="width:120px">Largo Tira (mm)</th>
-            <th style="width:80px">Eliminar</th>
+            <th>Cantidad</th>
+            <th>Sistema</th>
+            <th>Largo Tira (mm)</th>
+            <th>Eliminar</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -117,18 +116,16 @@
 
 <script>
 const PASSWORD = "1234";
-const MERMA = 150;
+const MERMA = 50;
 const SYSTEMS = {
   "Corrediza Europea": {
     "MTG1399": { altos: 2, anchos: 2 },
     "MTG2177": { altos: 4, anchos: 2 },
     "MTG2176": { altos: 2, anchos: 0 },
-    "EUAA01": { cantidad: 1, tipo: "herraje" }
   },
   "Fija": {
     "MTG2180": { altos: 2, anchos: 2 },
     "MTG2184": { altos: 2, anchos: 2 },
-    "EUAA01": { cantidad: 1, tipo: "herraje" }
   },
   "Batiente": {},
   "Proyección": {},
@@ -182,11 +179,11 @@ function addRow(){
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><input type="text" placeholder="V1"></td>
-    <td><input type="number" min="1" step="1" placeholder="1200"></td>
-    <td><input type="number" min="1" step="1" placeholder="800"></td>
-    <td><input type="number" min="1" step="1" value="1"></td>
+    <td><input type="number" placeholder="1500"></td>
+    <td><input type="number" placeholder="1000"></td>
+    <td><input type="number" value="1"></td>
     <td><select>${Object.keys(SYSTEMS).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></td>
-    <td><input type="number" min="1000" step="1" value="${document.getElementById('globalLargo').value || 6000}"></td>
+    <td><input type="number" value="6000"></td>
     <td><button class="btn ghost" onclick="this.closest('tr').remove()">X</button></td>
   `;
   tbody.appendChild(tr);
@@ -199,13 +196,14 @@ function calcular(){
   const data = [];
   filas.forEach(tr=>{
     const tds = tr.querySelectorAll('td');
-    const winId = tds[0].querySelector('input').value.trim() || '-';
-    const alto = parseFloat(tds[1].querySelector('input').value) || 0;
-    const ancho = parseFloat(tds[2].querySelector('input').value) || 0;
-    const qty = parseInt(tds[3].querySelector('input').value) || 1;
-    const sistema = tds[4].querySelector('select').value;
-    const largo = parseFloat(tds[5].querySelector('input').value) || 6000;
-    data.push({winId, alto, ancho, qty, sistema, largo});
+    data.push({
+      winId: tds[0].querySelector('input').value.trim() || '-',
+      alto: parseFloat(tds[1].querySelector('input').value)||0,
+      ancho: parseFloat(tds[2].querySelector('input').value)||0,
+      qty: parseInt(tds[3].querySelector('input').value)||1,
+      sistema: tds[4].querySelector('select').value,
+      largo: parseFloat(tds[5].querySelector('input').value)||6000
+    });
   });
 
   const resumenPorPerfil = {};
@@ -215,12 +213,10 @@ function calcular(){
     const sys = SYSTEMS[item.sistema];
     if(!sys) return;
     Object.entries(sys).forEach(([perfil, def])=>{
-      if(def.tipo === "herraje") return;
       const cortes = [];
       for(let i=0;i<def.altos;i++) cortes.push(item.alto);
       for(let j=0;j<def.anchos;j++) cortes.push(item.ancho);
       const totalCortes = cortes.length * item.qty;
-
       const largoTira = item.largo - MERMA;
       const cortesPorTira = [];
       let actual = 0, suma = 0;
@@ -238,9 +234,8 @@ function calcular(){
         }
       }
 
-      resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + cortesPorTira.length;
-      tirasPorPerfil[perfil] = tirasPorPerfil[perfil] || [];
-
+      resumenPorPerfil[perfil] = (resumenPorPerfil[perfil]||0)+cortesPorTira.length;
+      tirasPorPerfil[perfil] = tirasPorPerfil[perfil]||[];
       cortesPorTira.forEach((arr)=>{
         const usado = arr.reduce((a,b)=>a+b,0);
         const sobrante = largoTira - usado;
@@ -254,21 +249,12 @@ function calcular(){
     });
   });
 
-  const htmlResumen = Object.entries(resumenPorPerfil)
-    .map(([perfil,n])=>`<div>${perfil}: <b>${n}</b> tiras</div>`)
-    .join('') || '<i>No se encontraron perfiles</i>';
-
-  document.getElementById('summary').innerHTML = `
-    <h4 style="color:var(--accent)">Resumen de cortes:</h4>
-    ${htmlResumen}
-    <p class="muted">Listo para exportar a PDF.</p>
-  `;
-
   lastResults = { proyecto: document.getElementById('projectName').value, usuario: currentUser, filas: data, resumenPorPerfil, tirasPorPerfil };
+  document.getElementById('summary').innerText = 'Resumen calculado correctamente. Listo para exportar a PDF.';
 }
 
 function exportPdf(){
-  if(!lastResults){ alert('Calcula primero antes de exportar.'); return; }
+  if(!lastResults){ alert('Calcule primero.'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
   const pageW = doc.internal.pageSize.getWidth();
@@ -276,10 +262,11 @@ function exportPdf(){
   const margin = 36;
   let y = margin;
 
+  // Encabezado
   doc.setFontSize(16);
   doc.setTextColor(20,220,180);
   doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
-  y += 18;
+  y += 20;
 
   doc.setFontSize(10);
   doc.setTextColor(0,0,0);
@@ -287,6 +274,18 @@ function exportPdf(){
   doc.text(`Usuario: ${lastResults.usuario || '-'}`, margin+300, y);
   doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 160, y);
   y += 20;
+
+  // Resumen de ventanas
+  doc.setFontSize(11);
+  doc.setTextColor(0,0,0);
+  doc.text('RESUMEN DE VENTANAS', margin, y);
+  y += 12;
+  doc.setFontSize(9);
+  lastResults.filas.forEach(f=>{
+    doc.text(`${f.winId} = ${f.sistema} — Ancho: ${f.ancho} mm, Alto: ${f.alto} mm, Cantidad: ${f.qty}`, margin, y);
+    y += 10;
+  });
+  y += 10;
 
   const barMaxWidth = Math.min(pageW - margin*2 - 160, 900);
   const barH = 14;
@@ -304,6 +303,10 @@ function exportPdf(){
       const scale = barMaxWidth / tira.largo;
       let x = margin + 120;
       const baseY = y;
+
+      // Etiqueta "Tira n"
+      doc.setFontSize(9);
+      doc.text(`Tira ${ti+1}`, margin + 60, baseY + barH/2 + 3, {align:'right'});
 
       doc.setDrawColor(100);
       doc.rect(x, baseY, barMaxWidth, barH);
@@ -341,15 +344,14 @@ function exportPdf(){
     y += 10;
   });
 
-  const filename = `Cortes_${(lastResults.proyecto||'Proyecto').replace(/\W+/g,'_')}_${Date.now()}.pdf`;
-  doc.save(filename);
+  doc.save(`Cortes_${Date.now()}.pdf`);
 }
 
 function borrarTodo(){
-  if(!confirm('Borrar todas las filas y resultados?')) return;
+  if(!confirm('¿Borrar todo?')) return;
   document.querySelector('#tableWindows tbody').innerHTML='';
-  document.getElementById('summary').innerHTML='Presiona "Calcular resumen" para ver totales por perfil.';
   lastResults=null;
+  document.getElementById('summary').innerText='Presiona "Calcular resumen" para ver totales por perfil.';
 }
 </script>
 </body>
