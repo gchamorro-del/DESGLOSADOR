@@ -219,6 +219,13 @@ function calcular(){
     if(!sys) return;
 
     Object.entries(sys).forEach(([perfil, def])=>{
+      // 🔹 Si el perfil es herraje, sumar directamente sin generar tiras
+if (def.tipo === "herraje") {
+  const cantidadVentanas = item.qty || 1;
+  const cantidadTotal = def.cantidad * cantidadVentanas;
+  resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + cantidadTotal;
+  return; // saltar al siguiente perfil (no genera cortes ni tiras)
+}
       const cortes = [];
       for(let i=0;i<def.altos;i++) cortes.push(item.alto);
 
