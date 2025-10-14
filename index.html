@@ -376,6 +376,42 @@ function exportPdf(){
   doc.text(`Aprovechamiento total del material: ${lastResults.aprovechamiento.toFixed(2)}%`, margin, y);
   doc.setTextColor(0,0,0);
   y += 20;
+// --- Resumen de herrajes y accesorios ---
+doc.setFontSize(11);
+doc.text('RESUMEN DE HERRAJES Y ACCESORIOS', margin, y);
+y += 12;
+doc.setFontSize(9);
+
+// Filtramos solo los perfiles tipo "herraje"
+const herrajes = Object.entries(lastResults.resumenPorPerfil).filter(([perfil])=>{
+  for (const sistema in SYSTEMS){
+    if (SYSTEMS[sistema][perfil]?.tipo === "herraje") return true;
+  }
+  return false;
+});
+
+if(herrajes.length === 0){
+  doc.text('No se registraron herrajes.', margin, y);
+  y += 10;
+}else{
+  herrajes.forEach(([perfil, cant])=>{
+    // Si este herraje tiene una regla de cálculo especial (calcularSegun)
+    let detalle = '';
+    for (const sistema in SYSTEMS){
+      const def = SYSTEMS[sistema][perfil];
+      if(def?.calcularSegun){
+        const reglas = Object.entries(def.calcularSegun)
+          .map(([base,f])=>`${base}×${f}`)
+          .join(' + ');
+        detalle = ` (calculado según ${reglas})`;
+      }
+    }
+    doc.text(`${perfil}: ${cant} unidades${detalle}`, margin, y);
+    y += 10;
+  });
+}
+
+y += 20;
 
   const barMaxWidth = Math.min(pageW - margin*2 - 160, 900);
   const barH = 14;
