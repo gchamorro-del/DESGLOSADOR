@@ -304,11 +304,11 @@ lastResults = {
       break;
     }
   }
-
   // si es herraje, muestra "unidades"
   const etiqueta = esHerraje ? "unidades" : "tiras";
   html += `${perfil}: ${cant} ${etiqueta}<br>`;
 });
+  }
 // --- EXPORTAR PDF ---
 function exportPdf(){
   if(!lastResults){ alert('Calcule primero.'); return; }
