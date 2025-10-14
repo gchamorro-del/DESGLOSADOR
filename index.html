@@ -328,21 +328,6 @@ tirasOptimas.forEach((tira, idx) => {
   });
 });
 
-      resumenPorPerfil[perfil] = (resumenPorPerfil[perfil]||0)+cortesPorTira.length;
-      tirasPorPerfil[perfil] = tirasPorPerfil[perfil]||[];
-      cortesPorTira.forEach((arr)=>{
-        const usado = arr.reduce((a,b)=>a+b,0);
-        const sobrante = largoTira - usado;
-        tirasPorPerfil[perfil].push({
-          largo:item.largo,
-          cortes:arr,
-          winRefs:arr.map(()=>item.winId),
-          sobrante
-        });
-      });
-    });
-  });
-
   // --- Calcular aprovechamiento ---
   let totalUsado = 0;
   let totalDisponible = 0;
