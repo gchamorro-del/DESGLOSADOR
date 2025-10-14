@@ -209,6 +209,59 @@ function addRow(){
   `;
   tbody.appendChild(tr);
 }
+// --- OPTIMIZADOR DE CORTES (SOLVER EXACTO) ---
+function optimizarCortesExacto(cortes, largoTira, merma = MERMA) {
+  // cortes: array de longitudes requeridas
+  // largoTira: largo máximo de cada barra
+  // Retorna un array de tiras, cada una con cortes asignados y sobrante
+
+  const piezas = cortes.map(c => c + merma).sort((a, b) => b - a);
+  let mejorSolucion = null;
+  let menorSobranteTotal = Infinity;
+
+  function backtrack(index, tiras) {
+    if (index === piezas.length) {
+      const sobranteTotal = tiras.reduce((s, t) => s + t.sobrante, 0);
+      if (sobranteTotal < menorSobranteTotal) {
+        menorSobranteTotal = sobranteTotal;
+        mejorSolucion = tiras.map(t => ({
+          cortes: [...t.cortes],
+          sobrante: t.sobrante,
+          largo: t.largo
+        }));
+      }
+      return;
+    }
+
+    const corte = piezas[index];
+
+    // intentar colocar en tiras existentes
+    for (let i = 0; i < tiras.length; i++) {
+      if (tiras[i].sobrante >= corte) {
+        tiras[i].cortes.push(corte - merma);
+        tiras[i].sobrante -= corte;
+        backtrack(index + 1, tiras);
+        tiras[i].sobrante += corte;
+        tiras[i].cortes.pop();
+      }
+    }
+
+    // crear nueva tira
+    if (corte <= largoTira) {
+      const nueva = {
+        cortes: [corte - merma],
+        largo: largoTira,
+        sobrante: largoTira - corte
+      };
+      tiras.push(nueva);
+      backtrack(index + 1, tiras);
+      tiras.pop();
+    }
+  }
+
+  backtrack(0, []);
+  return mejorSolucion || [];
+}
 
 // --- CALCULAR ---
 function calcular(){
@@ -251,21 +304,29 @@ function calcular(){
 
       const totalCortes = cortes.length * item.qty;
       const largoTira = item.largo - MERMA;
-      const cortesPorTira = [];
-      let actual = 0, suma = 0;
+     // --- OPTIMIZACIÓN EXACTA DE CORTES ---
+const listaCortes = [];
+for (let i = 0; i < def.altos; i++) listaCortes.push(item.alto);
+const anchoCorte = def.dividirAncho ? item.ancho / 2 : item.ancho;
+for (let j = 0; j < def.anchos; j++) listaCortes.push(anchoCorte);
+const cortesTotales = [];
+for (let i = 0; i < item.qty; i++) cortesTotales.push(...listaCortes);
 
-      for(let i=0;i<totalCortes;i++){
-        const valor = cortes[i % cortes.length];
-        if(suma + valor <= largoTira){
-          cortesPorTira[actual] = cortesPorTira[actual] || [];
-          cortesPorTira[actual].push(valor);
-          suma += valor;
-        }else{
-          actual++;
-          suma = valor;
-          cortesPorTira[actual] = [valor];
-        }
-      }
+// Ejecutar solver exacto
+const tirasOptimas = optimizarCortesExacto(cortesTotales, item.largo, MERMA);
+
+// Guardar resultados
+resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + tirasOptimas.length;
+tirasPorPerfil[perfil] = tirasPorPerfil[perfil] || [];
+
+tirasOptimas.forEach((tira, idx) => {
+  tirasPorPerfil[perfil].push({
+    largo: item.largo,
+    cortes: tira.cortes,
+    winRefs: tira.cortes.map(() => item.winId),
+    sobrante: tira.sobrante
+  });
+});
 
       resumenPorPerfil[perfil] = (resumenPorPerfil[perfil]||0)+cortesPorTira.length;
       tirasPorPerfil[perfil] = tirasPorPerfil[perfil]||[];
