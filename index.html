@@ -265,8 +265,30 @@ if (def.tipo === "herraje") {
       });
     });
   });
+// --- Calcular aprovechamiento total ---
+let totalUsado = 0;
+let totalDisponible = 0;
 
-  lastResults = { proyecto: document.getElementById('projectName').value, usuario: currentUser, filas: data, resumenPorPerfil, tirasPorPerfil };
+Object.values(tirasPorPerfil).forEach(perfilTiras => {
+  perfilTiras.forEach(tira => {
+    const largoTira = tira.largo - MERMA; // largo útil real
+    const usado = tira.cortes.reduce((a,b)=>a+b,0);
+    totalUsado += usado;
+    totalDisponible += largoTira;
+  });
+});
+
+const aprovechamiento = totalDisponible > 0 ? (totalUsado / totalDisponible) * 100 : 0;
+
+// Guardar en lastResults
+lastResults = { 
+  proyecto: document.getElementById('projectName').value, 
+  usuario: currentUser, 
+  filas: data, 
+  resumenPorPerfil, 
+  tirasPorPerfil,
+  aprovechamiento  // <-- se guarda aquí
+};
   
   // --- Mostrar resumen en pantalla principal ---
   let html = `<b>Resumen de Ventanas:</b><br>`;
@@ -274,12 +296,19 @@ if (def.tipo === "herraje") {
     html += `${f.winId} = ${f.sistema} — Ancho: ${f.ancho} mm, Alto: ${f.alto} mm, Cant: ${f.qty}<br>`;
   });
   html += `<br><b>Tiras por perfil:</b><br>`;
-  Object.entries(resumenPorPerfil).forEach(([perfil,cant])=>{
-    html += `${perfil}: ${cant} tiras<br>`;
-  });
-  document.getElementById('summary').innerHTML = html;
-}
+  Object.entries(resumenPorPerfil).forEach(([perfil, cant]) => {
+  let esHerraje = false;
+  for (const sistema in SYSTEMS) {
+    if (SYSTEMS[sistema][perfil]?.tipo === "herraje") {
+      esHerraje = true;
+      break;
+    }
+  }
 
+  // si es herraje, muestra "unidades"
+  const etiqueta = esHerraje ? "unidades" : "tiras";
+  html += `${perfil}: ${cant} ${etiqueta}<br>`;
+});
 // --- EXPORTAR PDF ---
 function exportPdf(){
   if(!lastResults){ alert('Calcule primero.'); return; }
@@ -313,6 +342,12 @@ function exportPdf(){
     y += 10;
   });
   y += 10;
+  // --- Porcentaje de aprovechamiento ---
+doc.setFontSize(11);
+doc.setTextColor(0,100,0);
+doc.text(`Aprovechamiento total del material: ${lastResults.aprovechamiento.toFixed(2)}%`, margin, y);
+doc.setTextColor(0,0,0);
+y += 20;
 
   const barMaxWidth = Math.min(pageW - margin*2 - 160, 900);
   const barH = 14;
