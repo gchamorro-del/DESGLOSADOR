@@ -474,78 +474,7 @@ y += 20;
     });
     y += 10;
   });
-  // --- Resumen de herrajes ---
-  y += 10;
-  if (y > pageH - 120) { doc.addPage(); y = margin; }
-
-  doc.setFontSize(12);
-  doc.setTextColor(20, 120, 220);
-  doc.text("RESUMEN DE HERRAJES", margin, y);
-  y += 12;
-
-  doc.setFontSize(9);
-  doc.setTextColor(0, 0, 0);
-
-  // Recorre los sistemas para extraer herrajes definidos en SYSTEMS
-  let herrajesTotales = {};
-  Object.keys(SYSTEMS).forEach(sistema => {
-    const comp = SYSTEMS[sistema];
-    Object.keys(comp).forEach(perfil => {
-      if (comp[perfil].tipo === "herraje") {
-        // busca si el herraje se usó en las filas calculadas
-        lastResults.filas.forEach(f => {
-          if (f.sistema === sistema) {
-            const cant = comp[perfil].cantidad || 0;
-            herrajesTotales[perfil] = (herrajesTotales[perfil] || 0) + (cant * f.qty);
-          }
-        });
-      }
-    });
-  });
-
-  if (Object.keys(herrajesTotales).length === 0) {
-    doc.text("No se registraron herrajes en este proyecto.", margin, y);
-    y += 10;
-  } else {
-    Object.entries(herrajesTotales).forEach(([cod, cant]) => {
-      doc.text(`${cod}: ${cant.toFixed(2)} unidades`, margin + 20, y);
-      y += 10;
-      if (y > pageH - 60) { doc.addPage(); y = margin; }
-    });
-  }
-
-  // --- Cálculo de aprovechamiento general ---
-  y += 20;
-  if (y > pageH - 120) { doc.addPage(); y = margin; }
-
-  doc.setFontSize(12);
-  doc.setTextColor(0, 150, 50);
-  doc.text("APROVECHAMIENTO GENERAL DE MATERIALES", margin, y);
-  y += 14;
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-
-  let totalUsado = 0;
-  let totalCortes = 0;
-
-  Object.values(lastResults.tirasPorPerfil).forEach(lista => {
-    lista.forEach(tira => {
-      const largo = tira.largo || 0;
-      const cortes = tira.cortes?.reduce((a, b) => a + b, 0) || 0;
-      totalUsado += largo;
-      totalCortes += cortes;
-    });
-  });
-
-  const aprovechamiento = totalUsado > 0 ? (totalCortes / totalUsado) * 100 : 0;
-
-  doc.text(`Total material utilizado: ${totalUsado.toFixed(0)} mm`, margin + 20, y);
-  y += 12;
-  doc.text(`Total cortes efectivos: ${totalCortes.toFixed(0)} mm`, margin + 20, y);
-  y += 12;
-  doc.text(`Aprovechamiento general: ${aprovechamiento.toFixed(2)} %`, margin + 20, y);
-  y += 12;
-
+  
   doc.save(`Cortes_${Date.now()}.pdf`);
 }
 
