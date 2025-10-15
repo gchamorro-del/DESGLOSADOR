@@ -325,9 +325,9 @@ tirasOptimas.forEach((tira, idx) => {
     cortes: tira.cortes,
     winRefs: tira.cortes.map(() => item.winId),
     sobrante: tira.sobrante
-  });
+   });
 });
-
+}); // 👈 esta llave cierra el data.forEach completo aquí
   // --- Calcular aprovechamiento ---
   let totalUsado = 0;
   let totalDisponible = 0;
