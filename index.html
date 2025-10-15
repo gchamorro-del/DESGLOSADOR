@@ -115,7 +115,7 @@ let lastResults = null;
 const SYSTEMS = {
   "Corrdiza Europea 3 Hojas": {
     "MTG1399": { altos: 2, anchos: 2 },
-    "MTG2177": { altos: 4, anchos: 4, dividirAncho: true }, // solo este divide el ancho
+    "MTG2177": { altos: 6, anchos: 4, dividirAncho: true }, // solo este divide el ancho
     "MTG2176": { altos: 4, anchos: 0 },
     "F04": { tipo: "herraje", calcularSegun: { "MTG2177": 2, "MTG2176": 1 } }, // calculado según metros lineales de perfiles
     "EUAA05L": { cantidad: 20, tipo: "herraje" },
@@ -133,11 +133,24 @@ const SYSTEMS = {
     "MTG2302": { altos: 2, anchos: 1 },
     "MTG2303": { altos: 0, anchos: 1 },
     "MTG2184": { altos: 2, anchos: 2 },
-  },
+ },
   "Ventana Proyectable Europea": {
     "MTG2180": { altos: 2, anchos: 2 },
     "MTG2179": { altos: 2, anchos: 2 },
     "MTG2184": { altos: 2, anchos: 2 }, 
+  }, 
+ "Corrdiza Europea 3 Hojas con Cedazo": {
+    "MTG1399": { altos: 2, anchos: 2 },
+    "MTG2177": { altos: 4, anchos: 4, dividirAncho: true }, // solo este divide el ancho
+    "MTG2078": { altos: 2, anchos: 2, dividirAncho: true }, // solo este divide el ancho
+    "MTG2176": { altos: 2, anchos: 0 },
+    "F04": { tipo: "herraje", calcularSegun: { "MTG2177": 2, "MTG2176": 1 } }, // calculado según metros lineales de perfiles
+    "EMPAQUE SEGUN VIDRIO": { tipo: "herraje", calcularSegun: { "MTG2177": 1 } }, // calculado según metros lineales de perfiles
+    "E04EUN": { tipo: "herraje", calcularSegun: { "MTG2078": 1 } }, // calculado según metros lineales de perfiles
+    "EUAA05L": { cantidad: 20, tipo: "herraje" },
+    "EUAP01": { cantidad: 1, tipo: "herraje" },
+    "EUCH01": { cantidad: 2, tipo: "herraje" },
+    "EUCH02": { cantidad: 2, tipo: "herraje" }, 
   },
   "Puerta Abatible de Lujo": {
     "MTG018": { altos: 2, anchos: 1 },
