@@ -288,16 +288,20 @@ function calcular(){
       }
 
       // construir lista de cortes para este perfil (por una ventana)
-      const cortesBase = [];
-  for (let i = 0; i < (def.altos || 0); i++) cortesBase.push(item.alto);
+const cortesBase = [];
+for (let i = 0; i < (def.altos || 0); i++) cortesBase.push(item.alto);
 
-    let anchoCorte = item.ancho;
-    if (def.dividirAncho) {
-    const divisor = typeof def.dividirAncho === 'number' ? def.dividirAncho : 2;
-    anchoCorte = item.ancho / divisor;
+let anchoCorte = item.ancho;
+if (def.dividirAncho) {
+  const divisor = typeof def.dividirAncho === 'number' ? def.dividirAncho : 2;
+  anchoCorte = item.ancho / divisor;
+
+  // 🔹 Redondea a 2 decimales (o entero si es exacto)
+  anchoCorte = Math.round(anchoCorte * 100) / 100;
 }
 
 for (let j = 0; j < (def.anchos || 0); j++) cortesBase.push(anchoCorte);
+
 
 
       if(cortesBase.length === 0) continue;
