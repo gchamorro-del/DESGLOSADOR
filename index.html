@@ -3,249 +3,258 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Optimizador de Cortes</title>
+  <title>Calculadora de Cortes y Herrajes</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body {
-      font-family: "Segoe UI", Arial, sans-serif;
-      background: #f4f6f8;
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
       margin: 0;
-      color: #222;
+      padding: 0;
     }
-    .login, .panel {
-      background: #fff;
+    header {
+      background-color: #004aad;
+      color: white;
+      padding: 15px;
+      text-align: center;
+    }
+    main {
       padding: 20px;
-      margin: 40px auto;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      width: 90%;
-      max-width: 1100px;
+      max-width: 1000px;
+      margin: auto;
+      background-color: white;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     }
-    .login input {
-      padding: 10px;
-      font-size: 14px;
-      width: 200px;
+    input, select, button {
+      margin: 8px 0;
+      padding: 8px;
+      width: 100%;
+      box-sizing: border-box;
     }
-    .btn {
-      background: #00b894;
-      color: #fff;
+    button {
+      background-color: #004aad;
+      color: white;
       border: none;
-      padding: 8px 14px;
-      border-radius: 6px;
       cursor: pointer;
-      font-size: 13px;
     }
-    .btn:hover { background: #019874; }
-    .btn.ghost { background: #dfe6e9; color: #333; }
-    .btn.danger { background: #d63031; }
-    .muted { color: #666; }
-    .center { text-align: center; }
+    button:hover {
+      background-color: #003080;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 12px;
+      margin-top: 20px;
     }
     th, td {
-      padding: 6px 8px;
-      border-bottom: 1px solid #ccc;
+      border: 1px solid #ccc;
+      padding: 8px;
       text-align: center;
     }
-    input, select {
-      width: 100%;
-      padding: 6px;
-      font-size: 13px;
+    th {
+      background-color: #004aad;
+      color: white;
+    }
+    .diagram {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .bar {
+      display: flex;
+      height: 40px;
+      border: 1px solid #333;
+      background-color: #e0e0e0;
+      position: relative;
+      overflow: hidden;
+    }
+    .cut {
+      height: 100%;
+      text-align: center;
+      font-size: 12px;
+      line-height: 40px;
+      color: white;
+    }
+    .cut:nth-child(odd) {
+      background-color: #004aad;
+    }
+    .cut:nth-child(even) {
+      background-color: #007bff;
     }
   </style>
 </head>
 <body>
+  <header>
+    <h1>Calculadora de Cortes y Herrajes</h1>
+  </header>
 
-<!-- LOGIN -->
-<div id="loginSection" class="login">
-  <h2>🔒 Acceso al Optimizador</h2>
-  <p>Introduce la contraseña para continuar:</p>
-  <input type="password" id="passwordInput" placeholder="Contraseña">
-  <button class="btn" onclick="checkLogin()">Entrar</button>
-  <p id="loginMsg" class="muted"></p>
-</div>
+  <main>
+    <label for="projectName">Nombre del proyecto:</label>
+    <input type="text" id="projectName" placeholder="Ej. Ventana corrediza 3 hojas">
 
-<!-- APP -->
-<div id="appSection" style="display:none">
-  <div class="panel">
-    <div class="row" style="align-items:center;gap:12px">
-      <div class="col">
-        <label>Proyecto / Cliente</label>
-        <input id="projectName" type="text" placeholder="Ej. Proyecto Alfa - Edificio A">
-      </div>
+    <label for="systemSelect">Selecciona el sistema:</label>
+    <select id="systemSelect">
+      <option value="">Seleccione...</option>
+      <option value="Corrdiza Europea 3 Hojas">Corrediza Europea 3 Hojas</option>
+    </select>
 
-      <div style="width:300px">
-        <label>&nbsp;</label>
-        <div class="actions">
-          <button class="btn" onclick="addRow()">➕ Agregar ventana</button>
-          <button class="btn ghost" onclick="calcular()">🧮 Calcular resumen</button>
-          <button class="btn" onclick="exportPdf()">📄 Exportar PDF</button>
-          <button class="btn danger" onclick="borrarTodo()">🗑 Borrar todo</button>
-        </div>
-      </div>
-    </div>
+    <label for="ancho">Ancho (mm):</label>
+    <input type="number" id="ancho" placeholder="Ej. 2000">
 
-    <h3 style="margin-top:14px;color:#00b894">Ventanas (ingreso manual)</h3>
+    <label for="alto">Alto (mm):</label>
+    <input type="number" id="alto" placeholder="Ej. 1500">
 
-    <table id="tableWindows">
+    <label for="cantidad">Cantidad:</label>
+    <input type="number" id="cantidad" value="1" min="1">
+
+    <label for="tiraLargo">Largo disponible de tira (mm):</label>
+    <input type="number" id="tiraLargo" value="6000" min="1000">
+
+    <button id="addWindow">Agregar ventana</button>
+    <button id="generatePDF">Generar PDF</button>
+
+    <h2>Resumen de cortes</h2>
+    <table id="cutsTable">
       <thead>
         <tr>
-          <th>ID Ventana</th>
-          <th>Ancho (mm)</th>
-          <th>Alto (mm)</th>
-          <th>Cantidad</th>
-          <th>Sistema</th>
-          <th>Largo Tira (mm)</th>
-          <th>Eliminar</th>
+          <th>Perfil</th>
+          <th>Longitudes (mm)</th>
+          <th>Total (mm)</th>
+          <th>Tiras usadas</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
 
-    <div id="summary" class="muted center">Presiona "Calcular resumen" para ver totales por perfil.</div>
-  </div>
-</div>
+    <h2>Resumen de herrajes</h2>
+    <table id="hardwareTable">
+      <thead>
+        <tr>
+          <th>Herraje</th>
+          <th>Cantidad</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
 
-<script>
-const PASSWORD = "1234";
-const MERMA = 50;
-const LARGO_DEFAULT = 6000;
+    <h2>Diagrama de cortes</h2>
+    <div class="diagram" id="diagramContainer"></div>
+  </main>
 
-// --- Definición de sistemas ---
-const SYSTEMS = {
-  "Corrediza Europea 3 Hojas": {
-    "MTG1399": { altos: 2, anchos: 2 },
-    "MTG2177": { altos: 6, anchos: 6, dividirAncho: 3 }, // Divide ancho entre 3
-    "MTG2176": { altos: 4, anchos: 0 },
-    "F04": { tipo: "herraje", calcularSegun: { "MTG2177": 2, "MTG2176": 1 } },
-    "EUAA05L": { cantidad: 20, tipo: "herraje" },
-    "EUAP01": { cantidad: 1.5, tipo: "herraje" },
-    "EUCH01": { cantidad: 2, tipo: "herraje" },
-    "EUCH02": { cantidad: 2, tipo: "herraje" },
-  },
-  "Fija": {
-    "MTG2180": { altos: 2, anchos: 2 },
-    "MTG2184": { altos: 2, anchos: 2 },
-    "EUAA01": { cantidad: 1, tipo: "herraje" },
-  }
-};
+  <script>
+    const SYSTEMS = {
+      "Corrdiza Europea 3 Hojas": {
+        "MTG1399": { altos: 2, anchos: 2 },
+        "MTG2177": { altos: 6, anchos: 6, dividirAncho: true },
+        "MTG2176": { altos: 4, anchos: 0 },
+        "F04": { tipo: "herraje", calcularSegun: { "MTG2177": 2, "MTG2176": 1 } },
+        "EUAA05L": { cantidad: 20, tipo: "herraje" },
+        "EUAP01": { cantidad: 1.5, tipo: "herraje" },
+        "EUCH01": { cantidad: 2, tipo: "herraje" },
+        "EUCH02": { cantidad: 2, tipo: "herraje" },
+      },
+    };
 
-let lastResults = null;
+    let ventanas = [];
 
-// --- LOGIN ---
-function checkLogin(){
-  const pass = document.getElementById('passwordInput').value.trim();
-  const msg = document.getElementById('loginMsg');
-  if(pass === PASSWORD){
-    document.getElementById('loginSection').style.display = 'none';
-    document.getElementById('appSection').style.display = 'block';
-  } else {
-    msg.textContent = 'Contraseña incorrecta. Intenta nuevamente.';
-  }
-}
+    document.getElementById("addWindow").addEventListener("click", () => {
+      const systemName = document.getElementById("systemSelect").value;
+      const ancho = parseFloat(document.getElementById("ancho").value);
+      const alto = parseFloat(document.getElementById("alto").value);
+      const cantidad = parseInt(document.getElementById("cantidad").value);
+      const tiraLargo = parseFloat(document.getElementById("tiraLargo").value);
 
-// --- AÑADIR FILA ---
-function addRow(){
-  const tbody = document.querySelector('#tableWindows tbody');
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td><input type="text" placeholder="V1"></td>
-    <td><input type="number" placeholder="1000"></td>
-    <td><input type="number" placeholder="1500"></td>
-    <td><input type="number" value="1" min="1"></td>
-    <td><select>${Object.keys(SYSTEMS).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></td>
-    <td><input type="number" value="${LARGO_DEFAULT}" min="1000"></td>
-    <td><button class="btn ghost" onclick="this.closest('tr').remove()">X</button></td>
-  `;
-  tbody.appendChild(tr);
-}
+      if (!systemName || !ancho || !alto || !cantidad) return alert("Complete todos los campos");
 
-// --- BORRAR TODO ---
-function borrarTodo(){
-  if(confirm('¿Seguro que deseas borrar todo?')){
-    document.querySelector('#tableWindows tbody').innerHTML = '';
-    document.getElementById('summary').innerHTML = 'Presiona "Calcular resumen" para ver totales por perfil.';
-    lastResults = null;
-  }
-}
+      const system = SYSTEMS[systemName];
+      const cortes = {};
+      const herrajes = {};
 
-// --- CALCULAR (simplificado) ---
-function calcular(){
-  const rows = [...document.querySelectorAll('#tableWindows tbody tr')];
-  if(rows.length === 0){ alert('Agrega al menos una ventana.'); return; }
+      Object.entries(system).forEach(([perfil, def]) => {
+        if (def.tipo === "herraje") return;
 
-  const filas = [];
-  rows.forEach(tr=>{
-    const celdas = tr.querySelectorAll('input,select');
-    const [id, ancho, alto, qty, sistema, largo] = [...celdas].map(c=>c.value);
-    filas.push({ winId:id||'-', ancho:+ancho, alto:+alto, qty:+qty, sistema, largo:+largo });
-  });
+        let cortesPerfil = [];
+        for (let i = 0; i < (def.altos || 0); i++) cortesPerfil.push(alto);
+        let anchoCorte = ancho;
 
-  const resumen = {};
-  filas.forEach(item=>{
-    const sys = SYSTEMS[item.sistema];
-    if(!sys) return;
+        if (def.dividirAncho) {
+          const divisor = typeof def.dividirAncho === "number" ? def.dividirAncho : 2;
+          anchoCorte = ancho / divisor;
+        }
+        for (let j = 0; j < (def.anchos || 0); j++) cortesPerfil.push(anchoCorte);
 
-    for(const [perfil,def] of Object.entries(sys)){
-      if(def.tipo === "herraje") continue;
-      let cortesBase = [];
+        cortes[perfil] = (cortes[perfil] || []).concat(cortesPerfil.map(c => +(c * cantidad).toFixed(2)));
+      });
 
-      for(let i=0;i<(def.altos||0);i++) cortesBase.push(item.alto);
-      let anchoCorte = item.ancho;
-      if(def.dividirAncho){
-        const divisor = typeof def.dividirAncho === 'number' ? def.dividirAncho : 2;
-        anchoCorte = +(item.ancho / divisor).toFixed(2);
-      }
-      for(let j=0;j<(def.anchos||0);j++) cortesBase.push(anchoCorte);
+      Object.entries(system).forEach(([nombre, def]) => {
+        if (def.tipo === "herraje") {
+          if (def.calcularSegun) {
+            let total = 0;
+            Object.entries(def.calcularSegun).forEach(([base, mult]) => {
+              const totalML = (cortes[base] || []).reduce((a, b) => a + b, 0) / 1000;
+              total += totalML * mult;
+            });
+            herrajes[nombre] = +(total.toFixed(2));
+          } else {
+            herrajes[nombre] = +(def.cantidad * cantidad).toFixed(2);
+          }
+        }
+      });
 
-      if(!resumen[perfil]) resumen[perfil]=[];
-      for(let k=0;k<item.qty;k++) resumen[perfil].push(...cortesBase);
+      ventanas.push({ systemName, cortes, herrajes, tiraLargo });
+      renderTables();
+    });
+
+    function renderTables() {
+      const cutsTable = document.querySelector("#cutsTable tbody");
+      const hardwareTable = document.querySelector("#hardwareTable tbody");
+      const diagramContainer = document.getElementById("diagramContainer");
+      cutsTable.innerHTML = "";
+      hardwareTable.innerHTML = "";
+      diagramContainer.innerHTML = "";
+
+      const cortesTotales = {};
+      const herrajesTotales = {};
+
+      ventanas.forEach(v => {
+        Object.entries(v.cortes).forEach(([perfil, arr]) => {
+          cortesTotales[perfil] = (cortesTotales[perfil] || []).concat(arr);
+        });
+        Object.entries(v.herrajes).forEach(([h, q]) => {
+          herrajesTotales[h] = (herrajesTotales[h] || 0) + q;
+        });
+      });
+
+      Object.entries(cortesTotales).forEach(([perfil, arr]) => {
+        const total = arr.reduce((a, b) => a + b, 0);
+        const tiras = Math.ceil(total / ventanas[0].tiraLargo);
+        cutsTable.innerHTML += `
+          <tr>
+            <td>${perfil}</td>
+            <td>${arr.join(", ")}</td>
+            <td>${total.toFixed(2)}</td>
+            <td>${tiras}</td>
+          </tr>`;
+      });
+
+      Object.entries(herrajesTotales).forEach(([h, q]) => {
+        hardwareTable.innerHTML += `<tr><td>${h}</td><td>${q}</td></tr>`;
+      });
+
+      Object.entries(cortesTotales).forEach(([perfil, arr]) => {
+        const bar = document.createElement("div");
+        bar.className = "bar";
+        const totalLength = ventanas[0].tiraLargo;
+        arr.forEach((cut) => {
+          const cutDiv = document.createElement("div");
+          cutDiv.className = "cut";
+          cutDiv.style.width = (cut / totalLength * 100) + "%";
+          cutDiv.textContent = `${cut}`;
+          bar.appendChild(cutDiv);
+        });
+        diagramContainer.appendChild(bar);
+      });
     }
-  });
-
-  let html = `<h4>Resumen de perfiles</h4><ul>`;
-  for(const [perfil,cortes] of Object.entries(resumen)){
-    const totalML = (cortes.reduce((a,b)=>a+b,0)/1000).toFixed(2);
-    html += `<li>${perfil}: ${cortes.length} cortes (${totalML} m lineales)</li>`;
-  }
-  html += `</ul>`;
-
-  document.getElementById('summary').innerHTML = html;
-  lastResults = { filas, resumen };
-}
-
-// --- EXPORTAR PDF ---
-function exportPdf(){
-  if(!lastResults){ alert('Calcule primero.'); return; }
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
-  const margin = 36, pageW = doc.internal.pageSize.getWidth();
-  let y = margin;
-
-  doc.setFontSize(16);
-  doc.setTextColor(0,184,148);
-  doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
-  y += 24;
-
-  doc.setFontSize(10);
-  doc.setTextColor(0,0,0);
-  doc.text(`Proyecto: ${document.getElementById('projectName').value || '-'}`, margin, y);
-  doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 150, y);
-  y += 20;
-
-  doc.setFontSize(11);
-  doc.text('RESUMEN DE VENTANAS', margin, y); y += 12;
-  lastResults.filas.forEach(f=>{
-    doc.setFontSize(9);
-    doc.text(`${f.winId} = ${f.sistema} — Ancho: ${f.ancho} mm, Alto: ${f.alto} mm, Cantidad: ${f.qty}`, margin, y);
-    y += 10;
-  });
-
-  doc.save(`Cortes_${Date.now()}.pdf`);
-}
-</script>
+  </script>
 </body>
 </html>
