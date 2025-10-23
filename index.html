@@ -182,47 +182,73 @@ function addRow(){
   tbody.appendChild(tr);
 }
 
-/* ----------------- SOLVER EXACTO (backtracking) ----------------- */
-function optimizarCortesExacto(cortes, largoTira, merma = MERMA) {
-  // cortes: array de longitudes (mm) sin merma. El solver añadirá merma por pieza.
-  // Se devuelve array de tiras: { cortes: [..], sobrante: number, largo: number }
-  if(!cortes || cortes.length===0) return [];
-  // piezas con merma incluida para asignación
-  const piezas = cortes.map(c => c + merma).sort((a,b)=>b-a);
-  let mejorSolucion = null;
-  let menorSobranteTotal = Infinity;
+/* ----------------- SOLVER HÍBRIDO (FFD + backtracking) ----------------- */
+function optimizarCortesHibrido(cortes, largoTira, merma = MERMA) {
+  if (!cortes || cortes.length === 0) return [];
 
-  function backtrack(index, tiras) {
-    if(index === piezas.length){
-      const sobranteTotal = tiras.reduce((s,t)=>s + t.sobrante, 0);
-      if(sobranteTotal < menorSobranteTotal){
-        menorSobranteTotal = sobranteTotal;
-        mejorSolucion = tiras.map(t=>({ cortes:[...t.cortes], sobrante: t.sobrante, largo: t.largo }));
-      }
-      return;
-    }
-    const pieza = piezas[index];
-    // probar en tiras existentes
-    for(let i=0;i<tiras.length;i++){
-      if(tiras[i].sobrante >= pieza){
-        tiras[i].cortes.push(pieza - merma);
-        tiras[i].sobrante -= pieza;
-        backtrack(index+1, tiras);
-        tiras[i].sobrante += pieza;
-        tiras[i].cortes.pop();
+  // Paso 1. Añadir merma a cada pieza y ordenar de mayor a menor
+  const piezas = cortes.map(c => c + merma).sort((a, b) => b - a);
+
+  // Paso 2. Algoritmo FFD (First Fit Decreasing)
+  const tiras = [];
+  for (const pieza of piezas) {
+    let colocada = false;
+    for (const tira of tiras) {
+      if (tira.sobrante >= pieza) {
+        tira.cortes.push(pieza - merma);
+        tira.sobrante -= pieza;
+        colocada = true;
+        break;
       }
     }
-    // crear nueva tira si cabe
-    if(pieza <= largoTira){
-      const nueva = { cortes: [pieza - merma], largo: largoTira, sobrante: largoTira - pieza };
-      tiras.push(nueva);
-      backtrack(index+1, tiras);
-      tiras.pop();
+    if (!colocada) {
+      tiras.push({ cortes: [pieza - merma], largo: largoTira, sobrante: largoTira - pieza });
     }
   }
 
-  backtrack(0, []);
-  return mejorSolucion || [];
+  // Paso 3. Backtracking local: optimizar solo las tiras menos eficientes (>15% sobrante)
+  function backtrackOpt(cortesPendientes, tira) {
+    if (cortesPendientes.length === 0) return tira;
+    let mejor = tira;
+    let menorSobrante = tira.sobrante;
+
+    function recursivo(pendientes, actuales, sobra) {
+      if (pendientes.length === 0) {
+        if (sobra < menorSobrante) {
+          menorSobrante = sobra;
+          mejor = { cortes: [...actuales], largo: largoTira, sobrante: sobra };
+        }
+        return;
+      }
+      for (let i = 0; i < pendientes.length; i++) {
+        const pieza = pendientes[i];
+        if (pieza <= sobra) {
+          const nuevosPend = pendientes.slice(0, i).concat(pendientes.slice(i + 1));
+          actuales.push(pieza - merma);
+          recursivo(nuevosPend, actuales, sobra - pieza);
+          actuales.pop();
+        }
+      }
+    }
+
+    recursivo(cortesPendientes, [], tira.sobrante);
+    return mejor;
+  }
+
+  // Buscar las tiras más ineficientes y optimizarlas
+  const todasLasPiezas = [...piezas];
+  for (let i = 0; i < tiras.length; i++) {
+    const eficiencia = (largoTira - tiras[i].sobrante) / largoTira;
+    if (eficiencia < 0.85) {
+      // Buscar piezas no usadas que puedan mejorar esta tira
+      const usadas = tiras.flatMap(t => t.cortes.map(c => c + merma));
+      const restantes = todasLasPiezas.filter(p => !usadas.includes(p));
+      const mejorada = backtrackOpt(restantes, tiras[i]);
+      tiras[i] = mejorada;
+    }
+  }
+
+  return tiras;
 }
 
 /* ----------------- CALCULAR ----------------- */
@@ -272,7 +298,7 @@ function calcular(){
       for(let k=0;k<item.qty;k++) cortesTotales.push(...cortesBase);
 
       // ejecutar solver exacto con largo de tira = item.largo (no restamos merma aquí porque solver lo considera)
-      const tirasOptimas = optimizarCortesExacto(cortesTotales, item.largo, MERMA);
+      const tirasOptimas = optimizarCortesHibrido(cortesTotales, item.largo, MERMA);
 
       // guardar resultado
       resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + tirasOptimas.length;
