@@ -183,29 +183,63 @@ function addRow(){
   tbody.appendChild(tr);
 }
 
-/* ----------------- SOLVER (optimizado: best-fit decreasing) ----------------- */
-function optimizarCortesExacto(cortes, largoTira, merma = MERMA) {
-  // Evitamos backtracking puro que congela el navegador; usamos Best-Fit-Decreasing
-  if(!cortes || cortes.length===0) return [];
-  const piezas = cortes.map(c => c + merma).sort((a,b)=>b-a);
-  const tiras = [];
-  for(const pieza of piezas){
-    let mejor = null;
-    let mejorResidual = Infinity;
-    for(const t of tiras){
-      if(t.sobrante >= pieza && (t.sobrante - pieza) < mejorResidual){
-        mejor = t;
-        mejorResidual = t.sobrante - pieza;
+// --- SOLVER OPTIMIZADO --- //
+function solveCuts(piezas, largoTira) {
+  // Filtra solo las piezas válidas
+  piezas = piezas.filter(p => p.largo > 0 && p.cantidad > 0);
+  if (piezas.length === 0) return [];
+
+  // Expande piezas según su cantidad
+  let todas = [];
+  piezas.forEach(p => {
+    for (let i = 0; i < p.cantidad; i++) {
+      todas.push({ nombre: p.nombre, largo: p.largo });
+    }
+  });
+
+  // Ordena de mayor a menor (Best Fit Decreasing)
+  todas.sort((a, b) => b.largo - a.largo);
+
+  let tiras = [];
+  let sobrantes = [];
+
+  for (const pieza of todas) {
+    let colocada = false;
+
+    // Intenta colocar la pieza en el mejor sobrante disponible
+    let mejorAjuste = null;
+    let menorRestante = Infinity;
+
+    for (const s of sobrantes) {
+      if (s.restante >= pieza.largo && s.restante - pieza.largo < menorRestante) {
+        mejorAjuste = s;
+        menorRestante = s.restante - pieza.largo;
       }
     }
-    if(mejor){
-      mejor.cortes.push(pieza - merma);
-      mejor.sobrante -= pieza;
-    } else {
-      tiras.push({ cortes: [pieza - merma], largo: largoTira, sobrante: largoTira - pieza });
+
+    if (mejorAjuste) {
+      mejorAjuste.piezas.push(pieza);
+      mejorAjuste.restante -= pieza.largo;
+      colocada = true;
+    }
+
+    // Si no cabe en ningún sobrante, crea una nueva tira
+    if (!colocada) {
+      const nuevaTira = {
+        piezas: [pieza],
+        restante: largoTira - pieza.largo
+      };
+      sobrantes.push(nuevaTira);
+      tiras.push(nuevaTira);
     }
   }
-  tiras.forEach(t=> t.cortes.sort((a,b)=>b-a));
+
+  // Calcula resumen de cada tira
+  tiras.forEach((t, i) => {
+    t.id = i + 1;
+    t.utilizada = largoTira - t.restante;
+  });
+
   return tiras;
 }
 
@@ -448,24 +482,6 @@ function exportPdf(){
         doc.setTextColor(0,0,0);
         doc.text(`Sobrante ${tira.sobrante} mm`, x + Math.max(10, sobraW/2), baseY + barH/2 + 3, {align:'center'});
       }
-
-      // porcentaje de aprovechamiento por tira
-      const largoUtil = tira.largo - MERMA;
-      const eficiencia = (usadoMm / largoUtil) * 100;
-      doc.setFontSize(8);
-      doc.setTextColor(0,0,0);
-      doc.text(`Aprovechamiento: ${eficiencia.toFixed(2)}%`, margin + barMaxWidth + 200 - 40, baseY + barH/2 + 3, {align:'left'});
-
-      doc.setFontSize(8);
-      doc.setTextColor(0,0,0);
-      doc.text(`Tira utilizada: ${tira.largo} mm`, margin + barMaxWidth/2, baseY + barH + 16, {align:'center'});
-      y += gap;
-    });
-    y += 8;
-  }
-
-  doc.save(`Cortes_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'_')}.pdf`);
-}
 
 /* ----------------- UTIL ----------------- */
 function borrarTodo(){
