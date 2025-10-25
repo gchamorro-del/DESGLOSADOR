@@ -15,22 +15,24 @@
     input, select, button { padding: 5px; }
     .btn { background: #0069c0; color: #fff; border: none; border-radius: 5px; padding: 6px 10px; cursor: pointer; }
     .btn.ghost { background: #f44336; }
-    .btn-group { margin: 15px 0; display: flex; gap: 10px; }
-    .hdr { display: flex; justify-content: space-between; margin-bottom: 10px; }
+    .btn-group { margin: 15px 0; display: flex; gap: 10px; flex-wrap: wrap; }
+    .hdr { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; }
     .resultado { background: #fff; padding: 10px; border-radius: 8px; margin-top: 15px; }
   </style>
 </head>
 
 <body>
+  <!-- SECCIÓN DE LOGIN -->
   <div class="login" id="loginSection">
     <h2>Ingreso al Optimizador</h2>
     <label>Usuario:</label><br>
-    <input type="text" id="loginUser"><br><br>
+    <input type="text" id="loginUser" placeholder="Ingrese su usuario"><br><br>
     <label>Contraseña:</label><br>
-    <input type="password" id="loginPass"><br><br>
-    <button class="btn" onclick="doLogin()">Entrar</button>
+    <input type="password" id="loginPass" placeholder="Ingrese la contraseña"><br><br>
+    <button class="btn" id="loginBtn">Entrar</button>
   </div>
 
+  <!-- SECCIÓN PRINCIPAL -->
   <div class="app hidden" id="appSection">
     <div class="hdr">
       <h2>Optimizador Técnico de Cortes</h2>
@@ -67,7 +69,6 @@
 
 <script>
 const PASSWORD = "1234";
-const MERMA = 50;
 let currentUser = null;
 let lastResults = null;
 
@@ -92,77 +93,88 @@ const SYSTEMS = {
   "Otro": {}
 };
 
-function doLogin(){
-  const u=document.getElementById('loginUser').value.trim();
-  const p=document.getElementById('loginPass').value;
-  if(!u||!p){alert('Ingrese usuario y contraseña');return;}
-  if(p!==PASSWORD){alert('Contraseña incorrecta');document.getElementById('loginPass').value='';return;}
-  currentUser=u;
-  document.getElementById('hdrUser').innerText=`Usuario: ${u}`;
-  document.getElementById('loginSection').style.display='none';
-  document.getElementById('appSection').style.display='block';
-  addRow();
-}
+// LOGIN FUNCIONAL
+document.getElementById('loginBtn').addEventListener('click', () => {
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  if (!user || !pass) {
+    alert('Ingrese usuario y contraseña.');
+    return;
+  }
+  if (pass !== PASSWORD) {
+    alert('Contraseña incorrecta.');
+    document.getElementById('loginPass').value = '';
+    return;
+  }
 
-function addRow(){
-  const tbody=document.querySelector('#tableWindows tbody');
-  const tr=document.createElement('tr');
-  const defaultLargo=parseInt(document.getElementById('globalLargo').value)||6000;
-  tr.innerHTML=`
+  // Login correcto
+  currentUser = user;
+  document.getElementById('hdrUser').innerText = `Usuario: ${user}`;
+  document.getElementById('loginSection').classList.add('hidden');
+  document.getElementById('appSection').classList.remove('hidden');
+  addRow();
+});
+
+function addRow() {
+  const tbody = document.querySelector('#tableWindows tbody');
+  const tr = document.createElement('tr');
+  const defaultLargo = parseInt(document.getElementById('globalLargo').value) || 6000;
+  tr.innerHTML = `
     <td><input type="text" placeholder="V1"></td>
     <td><input type="number" placeholder="1000"></td>
     <td><input type="number" placeholder="1500"></td>
     <td><input type="number" value="1" min="1"></td>
-    <td><select>${Object.keys(SYSTEMS).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></td>
+    <td><select>${Object.keys(SYSTEMS).map(s => `<option value="${s}">${s}</option>`).join('')}</select></td>
     <td><input type="number" value="${defaultLargo}" min="1000"></td>
     <td><button class="btn ghost" onclick="this.closest('tr').remove()">X</button></td>`;
   tbody.appendChild(tr);
 }
 
-function borrarTodo(){
-  if(confirm("¿Seguro que deseas borrar todos los datos?")){
-    document.querySelector('#tableWindows tbody').innerHTML="";
-    document.getElementById('resultado').innerHTML="";
-    lastResults=null;
+function borrarTodo() {
+  if (confirm("¿Seguro que deseas borrar todos los datos?")) {
+    document.querySelector('#tableWindows tbody').innerHTML = "";
+    document.getElementById('resultado').innerHTML = "";
+    lastResults = null;
   }
 }
 
-function calcular(){
-  const filas=document.querySelectorAll('#tableWindows tbody tr');
-  if(filas.length===0){alert("Agrega al menos una ventana.");return;}
-  const resultados={};
-  filas.forEach(f=>{
-    const nombre=f.children[0].querySelector("input").value||"Sin nombre";
-    const ancho=parseFloat(f.children[1].querySelector("input").value)||0;
-    const alto=parseFloat(f.children[2].querySelector("input").value)||0;
-    const cantidad=parseInt(f.children[3].querySelector("input").value)||1;
-    const sistema=f.children[4].querySelector("select").value;
-    const largoTira=parseFloat(f.children[5].querySelector("input").value)||6000;
+function calcular() {
+  const filas = document.querySelectorAll('#tableWindows tbody tr');
+  if (filas.length === 0) {
+    alert("Agrega al menos una ventana.");
+    return;
+  }
 
-    if(!resultados[sistema]) resultados[sistema]={ piezas:[], largoTira };
-    resultados[sistema].piezas.push({nombre,largo:ancho,alto,cantidad});
+  const resultados = {};
+  filas.forEach(f => {
+    const nombre = f.children[0].querySelector("input").value || "Sin nombre";
+    const ancho = parseFloat(f.children[1].querySelector("input").value) || 0;
+    const alto = parseFloat(f.children[2].querySelector("input").value) || 0;
+    const cantidad = parseInt(f.children[3].querySelector("input").value) || 1;
+    const sistema = f.children[4].querySelector("select").value;
+    const largoTira = parseFloat(f.children[5].querySelector("input").value) || 6000;
+
+    if (!resultados[sistema]) resultados[sistema] = { piezas: [], largoTira };
+    resultados[sistema].piezas.push({ nombre, largo: ancho, alto, cantidad });
   });
 
-  // Simular cálculo total
-  for(const [sistema,data] of Object.entries(resultados)){
-    const piezas=data.piezas.map(p=>({nombre:p.nombre,largo:p.largo,cantidad:p.cantidad}));
-    data.tiras=solveCuts(piezas,data.largoTira);
+  for (const [sistema, data] of Object.entries(resultados)) {
+    const piezas = data.piezas.map(p => ({ nombre: p.nombre, largo: p.largo, cantidad: p.cantidad }));
+    data.tiras = solveCuts(piezas, data.largoTira);
   }
 
-  lastResults=resultados;
-  document.getElementById('resultado').innerHTML="✅ Cálculo completado. Listo para exportar PDF.";
+  lastResults = resultados;
+  document.getElementById('resultado').innerHTML = "✅ Cálculo completado. Listo para exportar PDF.";
 }
 
-// --- SOLVER OPTIMIZADO --- //
+// --- SOLVER OPTIMIZADO ---
 function solveCuts(piezas, largoTira) {
   piezas = piezas.filter(p => p.largo > 0 && p.cantidad > 0);
   if (piezas.length === 0) return [];
 
   let todas = [];
   piezas.forEach(p => {
-    for (let i = 0; i < p.cantidad; i++) {
-      todas.push({ nombre: p.nombre, largo: p.largo });
-    }
+    for (let i = 0; i < p.cantidad; i++) todas.push({ nombre: p.nombre, largo: p.largo });
   });
 
   todas.sort((a, b) => b.largo - a.largo);
@@ -189,10 +201,7 @@ function solveCuts(piezas, largoTira) {
     }
 
     if (!colocada) {
-      const nuevaTira = {
-        piezas: [pieza],
-        restante: largoTira - pieza.largo
-      };
+      const nuevaTira = { piezas: [pieza], restante: largoTira - pieza.largo };
       sobrantes.push(nuevaTira);
       tiras.push(nuevaTira);
     }
@@ -206,17 +215,22 @@ function solveCuts(piezas, largoTira) {
   return tiras;
 }
 
-// --- EXPORTAR PDF --- //
-function generarPDF(){
-  if(!lastResults){alert("Primero calcula los cortes.");return;}
-  let totalUtil=0, totalTira=0;
-  for(const data of Object.values(lastResults)){
-    for(const tira of data.tiras){
+// --- EXPORTAR PDF ---
+function generarPDF() {
+  if (!lastResults) {
+    alert("Primero calcula los cortes.");
+    return;
+  }
+
+  let totalUtil = 0, totalTira = 0;
+  for (const data of Object.values(lastResults)) {
+    for (const tira of data.tiras) {
       totalUtil += tira.utilizada;
       totalTira += data.largoTira;
     }
   }
-  const aprovechamientoTotal=(totalUtil/totalTira)*100;
+
+  const aprovechamientoTotal = (totalUtil / totalTira) * 100;
   exportarPDF(lastResults, aprovechamientoTotal);
 }
 
@@ -287,4 +301,3 @@ async function exportarPDF(resultados, aprovechamientoTotal) {
 </script>
 </body>
 </html>
-
