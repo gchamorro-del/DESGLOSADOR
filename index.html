@@ -12,34 +12,25 @@
   }
   body{margin:0;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;
        background:linear-gradient(180deg,#0b0d0f,#0f1315);color:var(--text)}
-  header{background:#071017;padding:14px 20px;display:flex;justify-content:space-between;
-         align-items:center;border-bottom:1px solid var(--border)}
+  header{background:#071017;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
   header h1{margin:0;font-size:18px;color:var(--accent)}
   .wrap{max-width:1200px;margin:18px auto;padding:12px}
-  .panel{background:linear-gradient(180deg,#0f1720,#0b1013);
-         border-radius:10px;padding:14px;border:1px solid var(--border)}
+  .panel{background:linear-gradient(180deg,#0f1720,#0b1013);border-radius:10px;padding:14px;border:1px solid var(--border)}
   label{color:var(--muted);font-size:13px}
-  input, select, button{font-size:14px}
-  input[type="text"], input[type="number"], select{
-    width:100%;padding:8px;border-radius:6px;
-    border:1px solid #22303a;background:#071018;color:var(--text)
-  }
+  input, select, button, textarea{font-size:14px}
+  input[type="text"], input[type="number"], select, textarea{width:100%;padding:8px;border-radius:6px;border:1px solid #22303a;background:#071018;color:var(--text)}
   table{width:100%;border-collapse:collapse;margin-top:10px}
-  th,td{padding:8px;border:1px solid var(--border);
-        font-size:13px;color:var(--text);text-align:center}
+  th,td{padding:8px;border:1px solid var(--border);font-size:13px;color:var(--text);text-align:center}
   th{background:#071820;color:var(--muted)}
   .row{display:flex;gap:10px}
   .col{flex:1}
   .actions{display:flex;gap:8px;flex-wrap:wrap}
-  .btn{background:var(--accent);color:#041018;padding:8px 12px;border-radius:6px;
-       border:none;cursor:pointer}
+  .btn{background:var(--accent);color:#041018;padding:8px 12px;border-radius:6px;border:none;cursor:pointer}
   .btn.ghost{background:transparent;border:1px solid #2a3338;color:var(--text)}
   .btn.danger{background:var(--danger);color:#fff}
-  #summary{margin-top:12px;padding:10px;border-radius:8px;
-           border:1px solid var(--border);background:#071319;color:var(--text)}
+  #summary{margin-top:12px;padding:10px;border-radius:8px;border:1px solid var(--border);background:#071319;color:var(--text)}
   .muted{color:var(--muted);font-size:13px}
-  .login-box{max-width:520px;margin:80px auto;padding:18px;border-radius:10px;
-             background:linear-gradient(180deg,#071014,#081218);border:1px solid var(--border)}
+  .login-box{max-width:520px;margin:80px auto;padding:18px;border-radius:10px;background:linear-gradient(180deg,#071014,#081218);border:1px solid var(--border)}
   .center{text-align:center}
   .small{font-size:12px;color:var(--muted)}
   @media(max-width:860px){ .row{flex-direction:column} .col{width:100%} }
@@ -68,9 +59,7 @@
     <div style="margin-top:12px" class="actions">
       <button class="btn" onclick="doLogin()">Entrar</button>
     </div>
-    <p class="small" style="margin-top:10px;color:var(--muted)">
-      Contraseña fija por defecto: <b>1234</b>
-    </p>
+    <p class="small" style="margin-top:10px;color:var(--muted)">Contraseña fija por defecto: <b>1234</b></p>
   </div>
 
   <!-- APP -->
@@ -113,16 +102,15 @@
         <tbody></tbody>
       </table>
 
-      <div id="summary" class="muted center">
-        Presiona "Calcular resumen" para ver totales por perfil.
-      </div>
+      <div id="summary" class="muted center">Presiona "Calcular resumen" para ver totales por perfil.</div>
     </div>
   </div>
 </div>
 
 <script>
+/* ----------------- CONFIG ----------------- */
 const PASSWORD = "1234";
-const MERMA = 50;
+const MERMA = 50; // merma por corte en mm
 let currentUser = null;
 let lastResults = null;
 
@@ -147,6 +135,26 @@ const SYSTEMS = {
   "Otro": {}
 };
 
+/* ----------------- UTILIDADES ----------------- */
+function colorForId(id){
+  const hash = [...id].reduce((a,c)=>a+c.charCodeAt(0),0);
+  const hue = hash % 360;
+  const rgb = hslToRgb(hue/360,0.6,0.5);
+  return rgb;
+}
+function hslToRgb(h, s, l){
+  let r,g,b;
+  if(s==0){ r=g=b=l; }
+  else{
+    const hue2rgb=(p,q,t)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6) return p+(q-p)*6*t; if(t<1/2) return q; if(t<2/3) return p+(q-p)*(2/3-t)*6; return p; };
+    const q = l < 0.5 ? l*(1+s) : l+s-l*s;
+    const p = 2*l-q;
+    r = hue2rgb(p,q,h+1/3); g = hue2rgb(p,q,h); b = hue2rgb(p,q,h-1/3);
+  }
+  return [Math.round(r*255),Math.round(g*255),Math.round(b*255)];
+}
+
+/* ----------------- LOGIN ----------------- */
 function doLogin(){
   const u=document.getElementById('loginUser').value.trim();
   const p=document.getElementById('loginPass').value;
@@ -159,6 +167,7 @@ function doLogin(){
   addRow();
 }
 
+/* ----------------- INTERFAZ (tabla) ----------------- */
 function addRow(){
   const tbody=document.querySelector('#tableWindows tbody');
   const tr=document.createElement('tr');
@@ -174,97 +183,299 @@ function addRow(){
   tbody.appendChild(tr);
 }
 
-/* ---------------- SOLVER OPTIMIZADO ---------------- */
+/* ----------------- SOLVER (optimizado: best-fit decreasing) ----------------- */
 function optimizarCortesExacto(cortes, largoTira, merma = MERMA) {
-  if (!cortes || cortes.length === 0) return [];
+  // Evitamos backtracking puro que congela el navegador; usamos Best-Fit-Decreasing
+  if(!cortes || cortes.length===0) return [];
   const piezas = cortes.map(c => c + merma).sort((a,b)=>b-a);
   const tiras = [];
-  piezas.forEach(pieza => {
-    let mejorTira=null;
-    let menorEspacio=Infinity;
-    for (const tira of tiras) {
-      if (tira.sobrante >= pieza && tira.sobrante - pieza < menorEspacio) {
-        mejorTira=tira; menorEspacio=tira.sobrante - pieza;
+  for(const pieza of piezas){
+    let mejor = null;
+    let mejorResidual = Infinity;
+    for(const t of tiras){
+      if(t.sobrante >= pieza && (t.sobrante - pieza) < mejorResidual){
+        mejor = t;
+        mejorResidual = t.sobrante - pieza;
       }
     }
-    if (mejorTira) {
-      mejorTira.cortes.push(pieza - merma);
-      mejorTira.sobrante -= pieza;
+    if(mejor){
+      mejor.cortes.push(pieza - merma);
+      mejor.sobrante -= pieza;
     } else {
-      tiras.push({ cortes:[pieza - merma], largo:largoTira, sobrante:largoTira - pieza });
+      tiras.push({ cortes: [pieza - merma], largo: largoTira, sobrante: largoTira - pieza });
     }
-  });
-  tiras.forEach(t => t.cortes.sort((a,b)=>b-a));
+  }
+  tiras.forEach(t=> t.cortes.sort((a,b)=>b-a));
   return tiras;
 }
 
-/* ---------------- CALCULAR ---------------- */
+/* ----------------- CALCULAR ----------------- */
 function calcular(){
-  const rows=[...document.querySelectorAll('#tableWindows tbody tr')];
-  if(!rows.length){alert("Agrega al menos una ventana.");return;}
-  const resumen={};
-  for(const tr of rows){
-    const id=tr.children[0].querySelector('input').value||'SIN_ID';
-    const ancho=parseFloat(tr.children[1].querySelector('input').value);
-    const alto=parseFloat(tr.children[2].querySelector('input').value);
-    const cant=parseInt(tr.children[3].querySelector('input').value)||1;
-    const sistema=tr.children[4].querySelector('select').value;
-    const largo=parseInt(tr.children[5].querySelector('input').value)||6000;
-    if(isNaN(ancho)||isNaN(alto)) continue;
+  const filas=[...document.querySelectorAll('#tableWindows tbody tr')];
+  if(filas.length === 0){ alert('Agrega al menos una ventana'); return; }
 
-    const sys=SYSTEMS[sistema];
-    for(const [perfil,conf] of Object.entries(sys)){
-      if(conf.tipo==="herraje"){
-        resumen[perfil]=(resumen[perfil]||0)+(conf.cantidad||0)*cant;
+  const data = filas.map(tr=>{
+    const tds = tr.querySelectorAll('td');
+    return {
+      winId: tds[0].querySelector('input').value.trim() || '-',
+      ancho: parseFloat(tds[1].querySelector('input').value) || 0,
+      alto: parseFloat(tds[2].querySelector('input').value) || 0,
+      qty: parseInt(tds[3].querySelector('input').value) || 1,
+      sistema: tds[4].querySelector('select').value,
+      largo: parseFloat(tds[5].querySelector('input').value) || 6000
+    };
+  });
+
+  const resumenPorPerfil = {};
+  const tirasPorPerfil = {};
+
+  for(const item of data){
+    const sys = SYSTEMS[item.sistema];
+    if(!sys) continue;
+
+    for(const [perfil, def] of Object.entries(sys)){
+      if(def.tipo === "herraje"){
+        const cantidadVentanas = item.qty || 1;
+        const cantidadTotal = (def.cantidad || 1) * cantidadVentanas;
+        resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + cantidadTotal;
         continue;
       }
-      const cortes=[];
-      if(conf.anchos>0){ for(let i=0;i<conf.anchos;i++) cortes.push(conf.dividirAncho?ancho/2:ancho); }
-      if(conf.altos>0){ for(let i=0;i<conf.altos;i++) cortes.push(alto); }
-      const totales=[];
-      for(let i=0;i<cant;i++) totales.push(...cortes);
-      if(!resumen[perfil]) resumen[perfil]=[];
-      resumen[perfil].push(...totales);
+
+      const cortesBase = [];
+      for(let i=0;i<(def.altos||0);i++) cortesBase.push(item.alto);
+      const anchoCorte = def.dividirAncho ? (item.ancho/2) : item.ancho;
+      for(let j=0;j<(def.anchos||0);j++) cortesBase.push(anchoCorte);
+
+      if(cortesBase.length === 0) continue;
+
+      const cortesTotales = [];
+      for(let k=0;k<item.qty;k++) cortesTotales.push(...cortesBase);
+
+      const tirasOptimas = optimizarCortesExacto(cortesTotales, item.largo, MERMA);
+
+      resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + tirasOptimas.length;
+      tirasPorPerfil[perfil] = tirasPorPerfil[perfil] || [];
+      tirasOptimas.forEach(t=>{
+        tirasPorPerfil[perfil].push({
+          largo: t.largo,
+          cortes: t.cortes,
+          winRefs: t.cortes.map(()=>item.winId),
+          sobrante: t.sobrante
+        });
+      });
     }
   }
 
-  let html="";
-  for(const [perfil,cortes] of Object.entries(resumen)){
-    if(typeof cortes==="number"){
-      html+=`<p><b>${perfil}</b>: ${cortes.toFixed(2)} unidades (herrajes)</p>`;
-      continue;
+  // aprovechamiento (solo perfiles)
+  let totalUsado = 0;
+  let totalDisponible = 0;
+  Object.values(tirasPorPerfil).forEach(lista=>{
+    lista.forEach(tira=>{
+      const largoTiraUtil = tira.largo - MERMA;
+      const usado = tira.cortes.reduce((a,b)=>a+b,0);
+      totalUsado += usado;
+      totalDisponible += largoTiraUtil;
+    });
+  });
+  const aprovechamiento = totalDisponible > 0 ? (totalUsado/totalDisponible)*100 : 0;
+
+  // resumen herrajes (calcularSegun)
+  const resumenHerrajes = {};
+  for(const [nombreSistema, perfiles] of Object.entries(SYSTEMS)){
+    for(const [perfil, def] of Object.entries(perfiles)){
+      if(def.tipo === "herraje" && def.calcularSegun){
+        let totalMetros = 0;
+        for(const [basePerfil, factor] of Object.entries(def.calcularSegun)){
+          const tirasBase = tirasPorPerfil[basePerfil] || [];
+          let sumaMm = 0;
+          tirasBase.forEach(tira => sumaMm += tira.cortes.reduce((a,b)=>a+b,0));
+          const metros = sumaMm / 1000;
+          totalMetros += metros * factor;
+        }
+        resumenHerrajes[perfil] = Math.round(totalMetros * 100) / 100;
+      }
     }
-    const largoBase=parseInt(document.getElementById('globalLargo').value)||6000;
-    const resultado=optimizarCortesExacto(cortes,largoBase);
-    const usado=resultado.reduce((a,b)=>a+b.cortes.reduce((x,y)=>x+y,0),0);
-    const total=resultado.length*largoBase;
-    const mermaTotal=total-usado;
-    html+=`<div><b>${perfil}</b>: ${resultado.length} tiras — Merma total ${mermaTotal.toFixed(1)} mm</div>`;
   }
-  document.getElementById('summary').innerHTML=html||"Sin resultados.";
+  for(const [perfil, cantidad] of Object.entries(resumenPorPerfil)){
+    let isHerraje = false;
+    for(const sys of Object.values(SYSTEMS)){
+      if(sys[perfil]?.tipo === "herraje") { isHerraje = true; break; }
+    }
+    if(isHerraje){
+      resumenHerrajes[perfil] = (resumenHerrajes[perfil] || 0) + cantidad;
+    }
+  }
+
+  lastResults = {
+    proyecto: document.getElementById('projectName').value || '',
+    usuario: currentUser,
+    filas: data,
+    resumenPorPerfil,
+    tirasPorPerfil,
+    aprovechamiento,
+    resumenHerrajes
+  };
+
+  let html = `<b>Resumen de Ventanas:</b><br>`;
+  data.forEach(f => {
+    html += `${f.winId} = ${f.sistema} — Ancho: ${f.ancho} mm, Alto: ${f.alto} mm, Cant: ${f.qty}<br>`;
+  });
+
+  html += `<br><b>Tiras / Unidades por perfil:</b><br>`;
+  Object.entries(resumenPorPerfil).forEach(([perfil,cant])=>{
+    let esHerraje = false;
+    for(const sysName in SYSTEMS){
+      if(SYSTEMS[sysName][perfil]?.tipo === "herraje"){ esHerraje = true; break; }
+    }
+    const etiqueta = esHerraje ? "unidades" : "tiras";
+    html += `${perfil}: ${cant} ${etiqueta}<br>`;
+  });
+
+  html += `<br><b>Aprovechamiento total:</b> ${aprovechamiento.toFixed(2)}%`;
+  document.getElementById('summary').innerHTML = html;
 }
 
-/* ---------------- EXPORTAR PDF ---------------- */
+/* ----------------- EXPORTAR PDF (landscape, con diagramas y eficiencia) ----------------- */
 function exportPdf(){
+  if(!lastResults){ alert('Calcula primero.'); return; }
   const { jsPDF } = window.jspdf;
-  const doc=new jsPDF();
-  const title=document.getElementById('projectName').value||"Proyecto sin nombre";
-  doc.text(`Resumen de cortes — ${title}`,10,10);
-  doc.text(`Usuario: ${currentUser||"N/A"}`,10,18);
-  doc.text("Fecha: "+new Date().toLocaleString(),10,26);
-  const contenido=document.getElementById('summary').innerText||"Sin resultados";
-  const split=doc.splitTextToSize(contenido,180);
-  doc.text(split,10,40);
-  doc.save(`${title.replace(/\s+/g,'_')}_resumen.pdf`);
+  const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 36;
+  let y = margin;
+
+  doc.setFontSize(16);
+  doc.setTextColor(20,220,180);
+  doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
+  y += 20;
+
+  doc.setFontSize(10);
+  doc.setTextColor(0,0,0);
+  doc.text(`Proyecto: ${lastResults.proyecto || '-'}`, margin, y);
+  doc.text(`Usuario: ${lastResults.usuario || '-'}`, margin+350, y);
+  doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 200, y);
+  y += 20;
+
+  doc.setFontSize(11);
+  doc.text('RESUMEN DE VENTANAS', margin, y);
+  y += 12;
+  doc.setFontSize(9);
+  lastResults.filas.forEach(f=>{
+    doc.text(`${f.winId} = ${f.sistema} — Ancho: ${f.ancho} mm, Alto: ${f.alto} mm, Cantidad: ${f.qty}`, margin, y);
+    y += 10;
+  });
+  y += 8;
+
+  doc.setFontSize(11);
+  doc.setTextColor(0,100,0);
+  doc.text(`Aprovechamiento total del material: ${lastResults.aprovechamiento.toFixed(2)}%`, margin, y);
+  doc.setTextColor(0,0,0);
+  y += 18;
+
+  doc.setFontSize(11);
+  doc.text('RESUMEN DE HERRAJES Y ACCESORIOS', margin, y);
+  y += 12;
+  doc.setFontSize(9);
+  const herrajesEntries = Object.entries(lastResults.resumenHerrajes || {});
+  if(herrajesEntries.length===0){
+    doc.text('No se registraron herrajes.', margin, y); y += 12;
+  } else {
+    herrajesEntries.forEach(([codigo, valor])=>{
+      doc.text(`${codigo}: ${Number(valor).toFixed(2)}`, margin, y); y += 10;
+    });
+    y += 6;
+  }
+
+  // Diagramas de cortes por perfil (colorear por ventana ID)
+  const barMaxWidth = Math.min(pageW - margin*2 - 200, 1000);
+  const barH = 14;
+  const gap = 38;
+
+  const perfiles = Object.keys(lastResults.tirasPorPerfil || {});
+  for(const perfil of perfiles){
+    // saltar perfiles que sean herrajes (no graficar)
+    let esHerraje = false;
+    for(const s in SYSTEMS){ if(SYSTEMS[s][perfil]?.tipo === "herraje"){ esHerraje = true; break; } }
+    if(esHerraje) continue;
+
+    if(y > pageH - 120){ doc.addPage(); y = margin; }
+    doc.setFontSize(12);
+    doc.text(`${perfil} — Diagramas de corte`, margin, y);
+    y += 12;
+
+    const tiras = lastResults.tirasPorPerfil[perfil] || [];
+    tiras.forEach((tira, iT) => {
+      if(y > pageH - 100){ doc.addPage(); y = margin; }
+      const scale = barMaxWidth / tira.largo;
+      let x = margin + 180;
+      const baseY = y;
+
+      doc.setFontSize(9);
+      doc.text(`Tira ${iT+1}`, margin + 120, baseY + barH/2 + 3, {align:'right'});
+
+      doc.setDrawColor(100);
+      doc.rect(x, baseY, barMaxWidth, barH);
+
+      let usadoMm = 0;
+      for(let ci=0; ci<tira.cortes.length; ci++){
+        const corte = tira.cortes[ci];
+        const win = tira.winRefs[ci] || '-';
+        const color = colorForId(win);
+        const seg = corte * scale;
+        doc.setFillColor(color[0], color[1], color[2]);
+        doc.rect(x, baseY, seg, barH, 'F');
+
+        // etiqueta
+        const etiqueta = `${win} - ${corte} mm`;
+        doc.setFontSize(7.5);
+        if(seg > 36){
+          doc.setTextColor(255,255,255);
+          doc.text(etiqueta, x + seg/2, baseY + barH/2 + 3, {align:'center'});
+        } else {
+          doc.setTextColor(0,0,0);
+          doc.text(`${corte} mm`, x + seg/2, baseY - 2, {align:'center'});
+        }
+        usadoMm += corte;
+        x += seg;
+      }
+      // sobrante
+      if(tira.sobrante > 0){
+        const sobraW = tira.sobrante * scale;
+        doc.setFillColor(120,120,120);
+        doc.rect(x, baseY, sobraW, barH, 'F');
+        doc.setFontSize(8);
+        doc.setTextColor(0,0,0);
+        doc.text(`Sobrante ${tira.sobrante} mm`, x + Math.max(10, sobraW/2), baseY + barH/2 + 3, {align:'center'});
+      }
+
+      // porcentaje de aprovechamiento por tira
+      const largoUtil = tira.largo - MERMA;
+      const eficiencia = (usadoMm / largoUtil) * 100;
+      doc.setFontSize(8);
+      doc.setTextColor(0,0,0);
+      doc.text(`Aprovechamiento: ${eficiencia.toFixed(2)}%`, margin + barMaxWidth + 200 - 40, baseY + barH/2 + 3, {align:'left'});
+
+      doc.setFontSize(8);
+      doc.setTextColor(0,0,0);
+      doc.text(`Tira utilizada: ${tira.largo} mm`, margin + barMaxWidth/2, baseY + barH + 16, {align:'center'});
+      y += gap;
+    });
+    y += 8;
+  }
+
+  doc.save(`Cortes_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'_')}.pdf`);
 }
 
-/* ---------------- BORRAR TODO ---------------- */
+/* ----------------- UTIL ----------------- */
 function borrarTodo(){
-  if(!confirm("¿Seguro que deseas borrar todos los datos?")) return;
-  document.querySelector('#tableWindows tbody').innerHTML="";
-  document.getElementById('summary').innerHTML='Presiona "Calcular resumen" para ver totales por perfil.';
-  addRow();
+  if(!confirm('¿Borrar todo?')) return;
+  document.querySelector('#tableWindows tbody').innerHTML = '';
+  lastResults = null;
+  document.getElementById('summary').innerText = 'Presiona "Calcular resumen" para ver totales por perfil.';
 }
+
+/* ----------------- FIN ----------------- */
 </script>
 </body>
 </html>
