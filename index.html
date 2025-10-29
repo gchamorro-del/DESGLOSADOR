@@ -69,11 +69,11 @@
           <label>Proyecto / Cliente</label>
           <input id="projectName" type="text" placeholder="Ej. Proyecto Alfa - Edificio A">
         </div>
-        <div style="width:220px">
+        <div style="width:260px">
           <label>Largo disponible de tira (mm)</label>
           <input id="globalLargo" type="text" value="6000" placeholder="Ej: 6000,5000" >
         </div>
-        <div style="width:220px">
+        <div style="width:260px">
           <label>&nbsp;</label>
           <div class="actions">
             <button class="btn" onclick="addRow()">➕ Agregar ventana</button>
@@ -86,7 +86,6 @@
 
       <h3 style="margin-top:14px;color:var(--accent)">Ventanas (ingreso manual)</h3>
 
-      <!-- RESUMEN ARRIBA: solo tiras totales por perfil y resumen general -->
       <div id="summary" class="muted center">Presiona "Calcular resumen" para ver totales por perfil.</div>
 
       <table id="tableWindows">
@@ -97,7 +96,7 @@
             <th>Alto (mm)</th>
             <th>Cantidad</th>
             <th>Sistema</th>
-            <th>Largo Tira (mm)</th>
+            <th>Largo Tira (mm) [override]</th>
             <th>Eliminar</th>
           </tr>
         </thead>
@@ -140,8 +139,7 @@ const SYSTEMS = {
 function colorForId(id){
   const hash = [...String(id)].reduce((a,c)=>a+c.charCodeAt(0),0);
   const hue = hash % 360;
-  const rgb = hslToRgb(hue/360,0.65,0.5);
-  return rgb;
+  return hslToRgb(hue/360,0.65,0.5);
 }
 function hslToRgb(h, s, l){
   let r,g,b;
@@ -179,91 +177,121 @@ function addRow(){
     <td><input type="number" placeholder="1500"></td>
     <td><input type="number" value="1" min="1"></td>
     <td><select>${Object.keys(SYSTEMS).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></td>
-    <td><input type="text" value="${defaultLargo}" ></td>
+    <td><input type="text" value="${defaultLargo}" placeholder="Opcional: 6000,5000"></td>
     <td><button class="btn ghost" onclick="this.closest('tr').remove()">X</button></td>
   `;
   tbody.appendChild(tr);
 }
 
-/* ----------------- SOLVER MULTI-LARGO (BFD adaptado) ----------------- */
+/* ----------------- SOLVER MULTI-LARGO (BFD con mejora local) ----------------- */
 /*
- Strategy:
- - inputs: cortes (array de {winId, len}), largosDisponibles (array de mm desc)
- - add merma por pieza cuando se prueba en bin (pero almacenamos la longitud real en la tira)
- - para cada pieza (ordenada desc) intentamos colocarla en el mejor bin existente (menor restante que quede)
- - si no cabe en ningun bin, creamos una nueva bin usando la MENOR longitud disponible que sea >= pieza+merma
- - si ninguna disponible puede, creamos bin con longitud = pieza+merma (caso excepcional)
- - retornamos lista de bins con propiedades: largo (capacidad), piezas: [{winId,len}], restante, utilizada
+ - piezas: [{winId,len}]
+ - largosDisponibles: [6000,5000,...] (desc)
+ - merma: mm por pieza
+ Retorna bins: [{ id, largo, piezas:[{winId,len}], restante, utilizada }]
 */
 function solveCutsMultiLargo(piezas, largosDisponibles, merma = MERMA){
   if(!piezas || piezas.length === 0) return [];
-  // normalizar largosDisponibles: numeros sin NaN, descendente
   const largos = Array.from(new Set((largosDisponibles||[]).map(v=>parseInt(v)).filter(n=>!isNaN(n) && n>0))).sort((a,b)=>b-a);
   if(largos.length === 0) largos.push(6000);
 
-  // piezas: array de objetos {winId, len}
+  // ordenar piezas desc
   const lista = piezas.slice().map(p=>({ winId: p.winId, len: Number(p.len) })).filter(p=>p.len>0);
-  // orden descendente por len
   lista.sort((a,b)=>b.len - a.len);
 
   const bins = []; // cada bin: { largo, piezas:[{winId,len}], restante, utilizada }
 
-  for(const pieza of lista){
-    const requerido = pieza.len + merma;
-    // buscar mejor bin existente
-    let mejorBin = null;
-    let mejorRest = Infinity;
-    for(const bin of bins){
-      if(bin.restante >= requerido){
-        const rest = bin.restante - requerido;
-        if(rest < mejorRest){
-          mejorRest = rest;
-          mejorBin = bin;
+  // helper para intentar colocar en mejor bin existente
+  function placeInBestBin(pieza){
+    let best = null; let bestRest = Infinity;
+    for(const b of bins){
+      if(b.restante >= (pieza.len + merma)){
+        const r = b.restante - (pieza.len + merma);
+        if(r < bestRest){
+          bestRest = r; best = b;
         }
       }
     }
-    if(mejorBin){
-      mejorBin.piezas.push({ winId: pieza.winId, len: pieza.len });
-      mejorBin.restante -= requerido;
-      mejorBin.utilizada += pieza.len;
-      continue;
+    if(best){
+      best.piezas.push({ winId: pieza.winId, len: pieza.len });
+      best.restante -= (pieza.len + merma);
+      best.utilizada += pieza.len;
+      return true;
     }
-    // crear nueva bin: elegir la menor longitud disponible que sea >= requerido
-    let elegido = null;
-    for(const L of largos.slice().sort((a,b)=>a-b)){ // menor a mayor
-      if(L >= requerido){ elegido = L; break; }
-    }
-    if(!elegido){
-      // ninguna disponible soporta la pieza con merma -> crear bin a medida
-      elegido = requerido;
-    }
-    const nueva = { largo: elegido, piezas: [{ winId: pieza.winId, len: pieza.len }], restante: elegido - requerido, utilizada: pieza.len };
-    bins.push(nueva);
+    return false;
   }
 
-  // asignar ids
-  bins.forEach((b,i)=> b.id = i+1);
+  // Paso 1: insertar con BFD (buscando mejor bin existente)
+  for(const pieza of lista){
+    if(placeInBestBin(pieza)) continue;
+    // crear nueva bin con la menor longitud disponible que quepa pieza+merma
+    let chosen = null;
+    for(const L of largos.slice().sort((a,b)=>a-b)){
+      if(L >= (pieza.len + merma)){ chosen = L; break; }
+    }
+    if(!chosen) chosen = pieza.len + merma; // caso extremo
+    const bin = { largo: chosen, piezas: [{ winId: pieza.winId, len: pieza.len }], restante: chosen - (pieza.len + merma), utilizada: pieza.len };
+    bins.push(bin);
+  }
+
+  // Paso 2: mejora local (intentar mover piezas entre bins para reducir sobrantes)
+  // Limitamos iteraciones para no bloquear UI
+  const maxPasses = 3;
+  for(let pass=0; pass<maxPasses; pass++){
+    let moved = false;
+    // ordenar bins por restante descend (los más sobrantes intentamos vaciar)
+    const binsSorted = bins.slice().sort((a,b)=> (b.restante) - (a.restante));
+    for(const bigBin of binsSorted){
+      if(bigBin.restante < Math.max(...(lista.map(p=>p.len)))/2) continue; // solo si bastante sobrante
+      // intentar mover piezas pequeñas desde otros bins a este bigBin if fit
+      for(const donor of bins){
+        if(donor === bigBin) continue;
+        // recorrer piezas pequeñas del donor
+        for(let i = donor.piezas.length -1; i>=0; i--){
+          const p = donor.piezas[i];
+          const needed = p.len + merma;
+          if(bigBin.restante >= needed){
+            // move
+            donor.piezas.splice(i,1);
+            donor.restante += needed;
+            donor.utilizada -= p.len;
+
+            bigBin.piezas.push({ winId: p.winId, len: p.len });
+            bigBin.restante -= needed;
+            bigBin.utilizada += p.len;
+            moved = true;
+            // break to re-evaluate
+            break;
+          }
+        }
+        if(moved) break;
+      }
+    }
+    if(!moved) break;
+  }
+
+  bins.forEach((b,i)=>{ b.id = i+1; b.utilizada = b.utilizada || b.piezas.reduce((a,p)=>a+p.len,0); });
   return bins;
 }
 
-/* ----------------- CALCULAR (genera resumen de tiras por largo y herrajes) ----------------- */
+/* ----------------- CALCULAR (genera resumen de ventanas, herrajes, tiras por perfil y por largo) ----------------- */
 function calcular(){
   const filas = [...document.querySelectorAll('#tableWindows tbody tr')];
   if(filas.length === 0){ alert('Agrega al menos una ventana'); return; }
 
-  // leer largos disponibles desde el campo (coma-separados)
+  // leer largos globales
   const rawLargos = (document.getElementById('globalLargo').value || '6000').split(',').map(s=>s.trim()).filter(s=>s.length>0);
-  const largosDisponibles = rawLargos.map(v => parseInt(v)).filter(n=>!isNaN(n) && n>0);
-  if(largosDisponibles.length === 0) largosDisponibles.push(6000);
-  largosDisponibles.sort((a,b)=>b-a); // descendente
+  const largosDisponiblesGlobal = rawLargos.map(v => parseInt(v)).filter(n=>!isNaN(n) && n>0).sort((a,b)=>b-a);
+  if(largosDisponiblesGlobal.length === 0) largosDisponiblesGlobal.push(6000);
 
   const resumenPorPerfil = {};
-  const tirasPorPerfil = {}; // perfil -> { tiras: [ {largo, piezas:[{winId,len}], restante, utilizada } ] }
+  const tirasPorPerfil = {}; // perfil -> { tiras: [], largosUsados: [] }
   const resumenHerrajes = {};
+  const resumenVentanas = {}; // winId -> { ancho, alto, qty }
 
   let totalUsado = 0;
   let totalDisponible = 0;
-  let resumenPorLargo = {}; // largo -> cantidad de tiras
+  const resumenPorLargo = {}; // largo -> count
 
   for(const tr of filas){
     const tds = tr.querySelectorAll('td');
@@ -272,16 +300,18 @@ function calcular(){
     const alto = parseFloat(tds[2].querySelector('input').value) || 0;
     const qty = parseInt(tds[3].querySelector('input').value) || 1;
     const sistema = tds[4].querySelector('select').value;
-    // cada fila puede tener su propio override de largos (si usuario puso varios en esa celda)
-    const rawRowLargos = (tds[5].querySelector('input').value || '').split(',').map(s=>s.trim()).filter(s=>s.length>0);
-    const rowLargos = rawRowLargos.length ? rawRowLargos.map(v=>parseInt(v)).filter(n=>!isNaN(n) && n>0) : null;
-    const largosParaEstaFila = (rowLargos && rowLargos.length>0) ? rowLargos.sort((a,b)=>b-a) : largosDisponibles;
+    const rawRow = (tds[5].querySelector('input').value || '').split(',').map(s=>s.trim()).filter(s=>s.length>0);
+    const rowLargos = rawRow.map(v=>parseInt(v)).filter(n=>!isNaN(n) && n>0).sort((a,b)=>b-a);
+    const largosParaFila = (rowLargos.length ? rowLargos : largosDisponiblesGlobal);
+
+    // registrar ventana en resumen de ventanas
+    if(!resumenVentanas[winId]) resumenVentanas[winId] = { ancho, alto, qty: 0 };
+    resumenVentanas[winId].qty += qty;
 
     const sys = SYSTEMS[sistema];
     if(!sys) continue;
 
     for(const [perfil, def] of Object.entries(sys)){
-      // herrajes: contabilizar (no generan tiras)
       if(def.tipo === "herraje"){
         const cantidadVentanas = qty;
         const cantidadTotal = (def.cantidad || 1) * cantidadVentanas;
@@ -296,27 +326,33 @@ function calcular(){
       for(let j=0;j<(def.anchos||0);j++) cortesBase.push(anchoCorte);
       if(cortesBase.length === 0) continue;
 
-      // replicar según cantidad
+      // replicar por cantidad
       const cortesTotales = [];
       for(let k=0;k<qty;k++) cortesTotales.push(...cortesBase);
 
-      // convertir a piezas con referencia a ventana
+      // piezas con referencia a ventana
       const piezas = cortesTotales.map(len => ({ winId, len }));
 
-      // resolver cortes usando largosParaEstaFila
-      const tiras = solveCutsMultiLargo(piezas, largosParaEstaFila, MERMA);
+      // resolver cortes para este conjunto y largosParaFila
+      const bins = solveCutsMultiLargo(piezas, largosParaFila, MERMA);
 
-      // acumular resumen por perfil
-      resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + tiras.length;
+      // acumular por perfil
+      resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + bins.length;
       tirasPorPerfil[perfil] = tirasPorPerfil[perfil] || { tiras: [], largosUsados: [] };
-      tiras.forEach(t => {
-        tirasPorPerfil[perfil].tiras.push(t);
-        tirasPorPerfil[perfil].largosUsados.push(t.largo);
-        // resumen por largo (global)
-        resumenPorLargo[t.largo] = (resumenPorLargo[t.largo] || 0) + 1;
+      bins.forEach(b => {
+        // estandarizar estructura: piezas: [{winId,len}], restante, largo, utilizada
+        tirasPorPerfil[perfil].tiras.push({
+          piezas: b.piezas.map(p=>({ winId: p.winId, len: p.len })),
+          restante: b.restante,
+          largo: b.largo,
+          utilizada: b.utilizada
+        });
+        tirasPorPerfil[perfil].largosUsados.push(b.largo);
+        resumenPorLargo[b.largo] = (resumenPorLargo[b.largo] || 0) + 1;
+
         // contabilizar aprovechamiento
-        const largoUtil = (t.largo || Math.max(...largosDisponibles)) - MERMA;
-        const usado = t.piezas.reduce((a,b)=>a+b.len,0);
+        const largoUtil = (b.largo || Math.max(...largosDisponiblesGlobal)) - MERMA;
+        const usado = b.piezas.reduce((a,p)=>a+p.len,0);
         totalUsado += usado;
         totalDisponible += Math.max(largoUtil, 0);
       });
@@ -327,7 +363,6 @@ function calcular(){
   for(const [nombreSistema, perfiles] of Object.entries(SYSTEMS)){
     for(const [perfil, def] of Object.entries(perfiles)){
       if(def.tipo === "herraje" && def.calcularSegun){
-        // sumar metros lineales de los perfiles base
         let totalMetros = 0;
         for(const [basePerfil, factor] of Object.entries(def.calcularSegun)){
           const tirasBase = (tirasPorPerfil[basePerfil] && tirasPorPerfil[basePerfil].tiras) || [];
@@ -341,9 +376,8 @@ function calcular(){
     }
   }
 
-  // merge: si resumenPorPerfil tiene herrajes con cantidad directa, sumarlos a resumenHerrajes
+  // sumar herrajes directos si aparecen en resumenPorPerfil (seguridad)
   for(const [perfil, cantidad] of Object.entries(resumenPorPerfil)){
-    // detectar si es realmente herraje (revisar SYSTEMS)
     let isHerraje = false;
     for(const sys of Object.values(SYSTEMS)){
       if(sys[perfil]?.tipo === "herraje") { isHerraje = true; break; }
@@ -361,6 +395,7 @@ function calcular(){
     resumenPorPerfil,
     tirasPorPerfil,
     resumenHerrajes,
+    resumenVentanas,
     resumenPorLargo,
     aprovechamiento,
     totalUsado,
@@ -376,25 +411,25 @@ function calcular(){
     });
   }
 
-  // resumen por largo (ej: "4 tiras de 5000")
   html += `<br><b>Resumen por largo de tira:</b><br>`;
   if(Object.keys(resumenPorLargo).length === 0) html += '<span class="muted">No hay tiras calculadas</span>';
   else {
-    // ordenar largos descendente
     Object.keys(resumenPorLargo).map(k=>parseInt(k)).sort((a,b)=>b-a).forEach(l => {
       html += `${resumenPorLargo[l]} tiras de ${l} mm<br>`;
     });
   }
 
   // resumen general
-  html += `<br><b>Total de tiras:</b> ${Object.values(lastResults.resumenPorLargo || resumenPorLargo).reduce((a,b)=>a+b,0) || Object.values(resumenPorLargo).reduce((a,b)=>a+b,0)}<br>`;
-  html += `<b>Total sobrante (mm estimado):</b> ${Math.max(0, Math.round((lastResults.totalDisponible || totalDisponible) - (lastResults.totalUsado || totalUsado))) } mm<br>`;
+  const totalTiras = Object.values(resumenPorLargo).reduce((a,b)=>a+b,0);
+  const totalSobrante = Math.max(0, Math.round((totalDisponible - totalUsado)));
+  html += `<br><b>Total de tiras:</b> ${totalTiras}<br>`;
+  html += `<b>Total sobrante (mm estimado):</b> ${totalSobrante} mm<br>`;
   html += `<b>Aprovechamiento total:</b> ${aprovechamiento.toFixed(2)}%`;
 
   document.getElementById('summary').innerHTML = html;
 }
 
-/* ----------------- EXPORTAR PDF (landscape, color, etiquetas, sobrante gris) ----------------- */
+/* ----------------- EXPORTAR PDF (landscape, con ventanas, herrajes, colores y sobrantes) ----------------- */
 function exportPdf(){
   if(!lastResults || !lastResults.tirasPorPerfil){ alert('Primero presiona Calcular resumen.'); return; }
 
@@ -407,7 +442,7 @@ function exportPdf(){
 
   // Encabezado
   doc.setFontSize(16);
-  doc.setTextColor(255,255,255);
+  doc.setTextColor(20,120,90);
   doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
   y += 22;
 
@@ -416,71 +451,101 @@ function exportPdf(){
   doc.text(`Proyecto: ${lastResults.proyecto || '-'}`, margin, y);
   doc.text(`Usuario: ${lastResults.usuario || '-'}`, margin + 300, y);
   doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 200, y);
-  y += 16;
+  y += 14;
 
-  // Resumen por largo (arriba del PDF)
+  // Resumen de Herrajes (parte superior)
   doc.setFontSize(11);
-  doc.text('RESUMEN DE TIRAS POR LARGO', margin, y);
-  y += 12;
-  const resumenPorLargo = lastResults.resumenPorLargo || {};
-  if(Object.keys(resumenPorLargo).length === 0){
-    doc.setFontSize(9); doc.text('No se registraron tiras.', margin, y); y += 10;
+  doc.text('RESUMEN DE HERRAJES Y ACCESORIOS', margin, y);
+  y += 10;
+  doc.setFontSize(9);
+  const herrajesEntries = Object.entries(lastResults.resumenHerrajes || {});
+  if(herrajesEntries.length === 0){
+    doc.text('No se registraron herrajes.', margin, y); y += 10;
   } else {
-    Object.keys(resumenPorLargo).map(k=>parseInt(k)).sort((a,b)=>b-a).forEach(l => {
-      doc.setFontSize(9);
-      doc.text(`${resumenPorLargo[l]} tiras de ${l} mm`, margin, y); y += 10;
+    herrajesEntries.forEach(([codigo, valor])=>{
+      doc.text(`${codigo}: ${Number(valor).toFixed(2)}`, margin, y); y += 8;
     });
   }
   y += 6;
+
+  // Resumen de Ventanas (arriba)
+  doc.setFontSize(11);
+  doc.text('RESUMEN DE VENTANAS (ID = Ancho x Alto, Cantidad)', margin, y);
+  y += 10;
+  doc.setFontSize(9);
+  const ventanasEntries = Object.entries(lastResults.resumenVentanas || {});
+  if(ventanasEntries.length === 0){
+    doc.text('No hay ventanas registradas.', margin, y); y += 10;
+  } else {
+    ventanasEntries.forEach(([id, o])=>{
+      doc.text(`${id} = Ancho: ${o.ancho} mm, Alto: ${o.alto} mm, Cantidad: ${o.qty}`, margin, y);
+      y += 8;
+    });
+  }
+  y += 8;
+
+  // Resumen por largo
+  doc.setFontSize(11);
+  doc.text('RESUMEN DE TIRAS POR LARGO', margin, y);
+  y += 10;
+  doc.setFontSize(9);
+  const resumenPorLargo = lastResults.resumenPorLargo || {};
+  if(Object.keys(resumenPorLargo).length === 0){
+    doc.text('No se registraron tiras.', margin, y); y += 10;
+  } else {
+    Object.keys(resumenPorLargo).map(k=>parseInt(k)).sort((a,b)=>b-a).forEach(l => {
+      doc.text(`${resumenPorLargo[l]} tiras de ${l} mm`, margin, y); y += 8;
+    });
+  }
+  y += 8;
 
   // Aprovechamiento total
   doc.setFontSize(11);
   doc.setTextColor(0,100,0);
   doc.text(`Aprovechamiento total del material: ${lastResults.aprovechamiento.toFixed(2)}%`, margin, y);
   doc.setTextColor(0,0,0);
-  y += 18;
+  y += 14;
 
   // Diagramas por perfil
-  const barMaxWidth = Math.min(pageW - margin*2 - 200, 1000);
-  const barH = 18;
-  const gap = 40;
+  const barMaxWidth = Math.min(pageW - margin*2 - 220, 1000);
+  const barH = 16;
+  const gap = 36;
 
   for(const [perfil, obj] of Object.entries(lastResults.tirasPorPerfil || {})){
     const tiras = obj.tiras || [];
     if(tiras.length === 0) continue;
 
-    if(y > pageH - 120){ doc.addPage(); y = margin; }
+    if(y > pageH - 160){ doc.addPage(); y = margin; }
     doc.setFontSize(12);
+    doc.setTextColor(0,0,0);
     doc.text(`${perfil} — Diagramas de corte`, margin, y);
     y += 12;
 
-    // cada tira
     for(let i=0;i<tiras.length;i++){
       const tira = tiras[i];
-      const capacidad = tira.largo || (obj.largoTira || parseInt(document.getElementById('globalLargo').value.split(',')[0] || 6000));
+      const capacidad = tira.largo || (obj.largoTira || parseInt((document.getElementById('globalLargo').value||'6000').split(',')[0]));
       const scale = barMaxWidth / capacidad;
       let x = margin + 160;
       const baseY = y;
 
-      // etiqueta Tira n
+      // Tira label
       doc.setFontSize(9);
-      doc.setTextColor(0,0,0);
       doc.text(`Tira ${i+1} (${capacidad} mm)`, margin + 120, baseY + barH/2 + 3, {align:'right'});
 
-      // contenedor
-      doc.setDrawColor(140);
+      // container
+      doc.setDrawColor(120);
       doc.rect(x, baseY, barMaxWidth, barH);
 
-      // Dibujar cortes con color por ventana
+      // draw pieces
       for(let ci=0; ci<tira.piezas.length; ci++){
-        const pieza = tira.piezas[ci]; // {winId, len}
-        const seg = pieza.len * scale;
+        const pieza = tira.piezas[ci];
+        const seg = Math.max(1, pieza.len * scale); // evitar 0 width
         const color = colorForId(pieza.winId);
         doc.setFillColor(color[0], color[1], color[2]);
         doc.rect(x, baseY, seg, barH, 'F');
 
-        // etiqueta dentro si hay espacio
-        doc.setFontSize(7.5);
+        // etiqueta dentro si cabe
+        doc.setFontSize(7);
         if(seg > 40){
           doc.setTextColor(255,255,255);
           const etiqueta = `${pieza.winId} - ${pieza.len} mm`;
@@ -510,21 +575,7 @@ function exportPdf(){
       y += gap;
       if(y > pageH - 100){ doc.addPage(); y = margin; }
     }
-
-    y += 6;
-  }
-
-  // Resumen de herrajes (al final)
-  if(Object.keys(lastResults.resumenHerrajes || {}).length > 0){
-    if(y > pageH - 120){ doc.addPage(); y = margin; }
-    doc.setFontSize(12);
-    doc.text('RESUMEN DE HERRAJES', margin, y);
     y += 10;
-    doc.setFontSize(9);
-    Object.entries(lastResults.resumenHerrajes).forEach(([k,v]) => {
-      doc.text(`${k}: ${Number(v).toFixed(2)}`, margin, y);
-      y += 8;
-    });
   }
 
   doc.save(`Cortes_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'_')}.pdf`);
@@ -540,4 +591,3 @@ function borrarTodo(){
 </script>
 </body>
 </html>
-
