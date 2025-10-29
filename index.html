@@ -289,125 +289,67 @@ function calcular(){
   document.getElementById('summary').innerHTML = html;
 }
 
-/* ----------------- EXPORTAR PDF (landscape) ----------------- */
 function exportPdf(){
-  if(!lastResults){ alert('Calcula primero.'); return; }
+  if(!lastResults || lastResults.length === 0){
+    alert("Primero calcule los cortes.");
+    return;
+  }
+
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+
   const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const margin = 36;
+  const margin = 40;
   let y = margin;
 
   // Encabezado
-  doc.setFontSize(16);
-  doc.setTextColor(255,255,255);
-  doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
-  y += 24;
+  doc.setFontSize(18);
+  doc.text("REPORTE DE OPTIMIZACIÓN DE CORTES", pageW/2, y, { align: "center" });
+  y += 25;
 
-  // Metadatos
   doc.setFontSize(10);
-  doc.setTextColor(0,0,0);
-  doc.text(`Proyecto: ${lastResults.proyecto || '-'}`, margin, y);
-  doc.text(`Usuario: ${lastResults.usuario || '-'}`, margin + 300, y);
-  doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 200, y);
-  y += 18;
+  doc.text(`Usuario: ${currentUser}`, margin, y);
+  y += 15;
+  doc.text(`Fecha: ${new Date().toLocaleString()}`, margin, y);
+  y += 25;
 
-  // Resumen de tiras por perfil (arriba en PDF también)
-  doc.setFontSize(11);
-  doc.text('RESUMEN - TIRAS TOTALES POR PERFIL', margin, y);
-  y += 12;
-  doc.setFontSize(9);
-  const resumenEntries = Object.entries(lastResults.resumenPorPerfil || {});
-  if(resumenEntries.length === 0){
-    doc.text('No se registraron tiras.', margin, y); y += 12;
-  } else {
-    resumenEntries.forEach(([perfil, cant])=>{
-      doc.text(`${perfil}: ${cant} tiras`, margin, y); y += 10;
-    });
-    y += 6;
-  }
+  // Título de sección
+  doc.setFontSize(14);
+  doc.text("Diagrama de Tiras Optimizado", margin, y);
+  y += 20;
 
-  // Aprovechamiento total
-  doc.setFontSize(11);
-  doc.setTextColor(0,100,0);
-  doc.text(`Aprovechamiento total del material: ${lastResults.aprovechamiento.toFixed(2)}%`, margin, y);
-  doc.setTextColor(0,0,0);
-  y += 18;
+  const largoTira = parseInt(document.getElementById("globalLargo").value) || 6000;
+  const totalWidth = pageW - margin*2;
+  const escala = totalWidth / largoTira;
 
-  // Diagramas por perfil
-  const barMaxWidth = Math.min(pageW - margin*2 - 200, 1000);
-  const barH = 14;
-  const gap = 36;
+  doc.setLineWidth(1);
 
-  const perfiles = Object.keys(lastResults.tirasPorPerfil || {});
-  for(const perfil of perfiles){
-    const obj = lastResults.tirasPorPerfil[perfil];
-    if(!obj || !obj.tiras || obj.tiras.length === 0) continue;
+  lastResults.forEach((tira, idx) => {
+    if(y > 530){
+      doc.addPage();
+      y = margin;
+    }
 
-    if(y > pageH - 120){ doc.addPage(); y = margin; }
     doc.setFontSize(12);
-    doc.text(`${perfil} — Diagramas de corte`, margin, y);
-    y += 12;
+    doc.text(`Tira ${idx+1} (${largoTira} mm)`, margin, y);
+    y += 8;
 
-    const tiras = obj.tiras;
-    const largoTira = obj.largoTira || (parseInt(document.getElementById('globalLargo').value) || 6000);
+    let x = margin;
+    tira.piezas.forEach((pz, i) => {
+      const ancho = pz.largo * escala;
+      doc.setDrawColor(0,0,0);
+      doc.rect(x, y, ancho, 20);
 
-    tiras.forEach((tira, iT) => {
-      if(y > pageH - 100){ doc.addPage(); y = margin; }
-      const scale = barMaxWidth / (tira.largo || largoTira);
-      let x = margin + 160;
-      const baseY = y;
-
-      doc.setFontSize(9);
-      doc.text(`Tira ${iT+1}`, margin + 120, baseY + barH/2 + 3, {align:'right'});
-
-      doc.setDrawColor(100);
-      doc.rect(x, baseY, barMaxWidth, barH);
-
-      let usadoMm = 0;
-      for(let ci=0; ci<tira.piezas.length; ci++){
-        const corte = tira.piezas[ci];
-        const color = colorForId(String(ci));
-        const seg = corte * scale;
-        doc.setFillColor(color[0], color[1], color[2]);
-        doc.rect(x, baseY, seg, barH, 'F');
-
-        // etiqueta si hay espacio
-        const etiqueta = `${corte} mm`;
-        doc.setFontSize(7.5);
-        if(seg > 36){
-          doc.setTextColor(255,255,255);
-          doc.text(etiqueta, x + seg/2, baseY + barH/2 + 3, {align:'center'});
-        } else {
-          doc.setTextColor(0,0,0);
-          doc.text(`${corte} mm`, x + seg/2, baseY - 2, {align:'center'});
-        }
-        usadoMm += corte;
-        x += seg;
-      }
-
-      // sobrante
-      if(tira.restante > 0){
-        const sobraW = tira.restante * scale;
-        doc.setFillColor(120,120,120);
-        doc.rect(x, baseY, sobraW, barH, 'F');
-        doc.setFontSize(8);
-        doc.setTextColor(0,0,0);
-        doc.text(`Sobrante ${tira.restante} mm`, x + Math.max(10, sobraW/2), baseY + barH/2 + 3, {align:'center'});
-      }
-
-      // etiqueta de tira utilizada
       doc.setFontSize(8);
-      doc.setTextColor(0,0,0);
-      doc.text(`Tira utilizada: ${tira.utilizada} mm`, margin + barMaxWidth/2, baseY + barH + 14, {align:'center'});
-      y += gap;
+      doc.text(`${pz.nombre} (${pz.largo} mm)`, x+2, y+12);
+
+      x += ancho;
     });
 
-    y += 8;
-  }
+    y += 40;
+  });
 
-  doc.save(`Cortes_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'_')}.pdf`);
+  doc.save("reporte_cortes.pdf");
 }
 
 /* ----------------- UTIL ----------------- */
