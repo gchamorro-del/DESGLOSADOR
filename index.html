@@ -288,10 +288,10 @@ function calcular(){
 
   document.getElementById('summary').innerHTML = html;
 }
-
+/* ----------------- EXPORTAR PDF (landscape) ----------------- */
 function exportPdf(){
-  if(!lastResults || lastResults.length === 0){
-    alert("Primero calcule los cortes.");
+  if(!lastResults || !lastResults.tirasPorPerfil){
+    alert("Primero presiona Calcular resumen.");
     return;
   }
 
@@ -311,43 +311,52 @@ function exportPdf(){
   doc.text(`Usuario: ${currentUser}`, margin, y);
   y += 15;
   doc.text(`Fecha: ${new Date().toLocaleString()}`, margin, y);
+  y += 15;
+  doc.text(`Proyecto: ${lastResults.proyecto || '-'}`, margin, y);
   y += 25;
 
-  // Título de sección
-  doc.setFontSize(14);
-  doc.text("Diagrama de Tiras Optimizado", margin, y);
-  y += 20;
+  // Por cada perfil
+  for(const [perfil, data] of Object.entries(lastResults.tirasPorPerfil)){
+    const tiras = data.tiras;
+    const largoTira = data.largoTira;
 
-  const largoTira = parseInt(document.getElementById("globalLargo").value) || 6000;
-  const totalWidth = pageW - margin*2;
-  const escala = totalWidth / largoTira;
+    doc.setFontSize(14);
+    doc.text(`Perfil: ${perfil}`, margin, y);
+    y += 20;
 
-  doc.setLineWidth(1);
+    const totalWidth = pageW - margin*2;
+    const escala = totalWidth / largoTira;
 
-  lastResults.forEach((tira, idx) => {
-    if(y > 530){
-      doc.addPage();
-      y = margin;
+    for(let i = 0; i < tiras.length; i++){
+      const tira = tiras[i];
+
+      // salto de página si se llena
+      if(y > 530){
+        doc.addPage();
+        y = margin;
+      }
+
+      doc.setFontSize(12);
+      doc.text(`Tira ${i+1} — (${largoTira} mm)`, margin, y);
+      y += 8;
+
+      let x = margin;
+      doc.setLineWidth(1);
+
+      // dibujar cada corte dentro de la tira
+      for(const pieza of tira.piezas){
+        const ancho = pieza * escala;
+        doc.rect(x, y, ancho, 20);
+        doc.setFontSize(8);
+        doc.text(`${pieza} mm`, x+2, y+12);
+        x += ancho;
+      }
+
+      y += 35;
     }
 
-    doc.setFontSize(12);
-    doc.text(`Tira ${idx+1} (${largoTira} mm)`, margin, y);
-    y += 8;
-
-    let x = margin;
-    tira.piezas.forEach((pz, i) => {
-      const ancho = pz.largo * escala;
-      doc.setDrawColor(0,0,0);
-      doc.rect(x, y, ancho, 20);
-
-      doc.setFontSize(8);
-      doc.text(`${pz.nombre} (${pz.largo} mm)`, x+2, y+12);
-
-      x += ancho;
-    });
-
-    y += 40;
-  });
+    y += 10;
+  }
 
   doc.save("reporte_cortes.pdf");
 }
