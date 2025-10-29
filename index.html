@@ -183,95 +183,73 @@ function addRow(){
   tbody.appendChild(tr);
 }
 
-/* ----------------- SOLVER MULTI-LARGO (BFD con mejora local) ----------------- */
-/*
- - piezas: [{winId,len}]
- - largosDisponibles: [6000,5000,...] (desc)
- - merma: mm por pieza
- Retorna bins: [{ id, largo, piezas:[{winId,len}], restante, utilizada }]
-*/
-function solveCutsMultiLargo(piezas, largosDisponibles, merma = MERMA){
-  if(!piezas || piezas.length === 0) return [];
-  const largos = Array.from(new Set((largosDisponibles||[]).map(v=>parseInt(v)).filter(n=>!isNaN(n) && n>0))).sort((a,b)=>b-a);
-  if(largos.length === 0) largos.push(6000);
+// LISTA DE SOBRANTES DISPONIBLES
+let sobrantesGlobales = [];
 
-  // ordenar piezas desc
-  const lista = piezas.slice().map(p=>({ winId: p.winId, len: Number(p.len) })).filter(p=>p.len>0);
-  lista.sort((a,b)=>b.len - a.len);
+// Función que intenta colocar una pieza en sobrantes existentes
+function colocarEnSobrante(longitud) {
+    for (let i = 0; i < sobrantesGlobales.length; i++) {
+        if (sobrantesGlobales[i] >= longitud) {
 
-  const bins = []; // cada bin: { largo, piezas:[{winId,len}], restante, utilizada }
+            // Usar parte del sobrante
+            sobrantesGlobales[i] -= longitud;
 
-  // helper para intentar colocar en mejor bin existente
-  function placeInBestBin(pieza){
-    let best = null; let bestRest = Infinity;
-    for(const b of bins){
-      if(b.restante >= (pieza.len + merma)){
-        const r = b.restante - (pieza.len + merma);
-        if(r < bestRest){
-          bestRest = r; best = b;
+            // Eliminar sobrantes muy pequeños
+            if (sobrantesGlobales[i] < 20) {
+                sobrantesGlobales.splice(i, 1);
+            }
+
+            return true;
         }
-      }
-    }
-    if(best){
-      best.piezas.push({ winId: pieza.winId, len: pieza.len });
-      best.restante -= (pieza.len + merma);
-      best.utilizada += pieza.len;
-      return true;
     }
     return false;
-  }
+}
 
-  // Paso 1: insertar con BFD (buscando mejor bin existente)
-  for(const pieza of lista){
-    if(placeInBestBin(pieza)) continue;
-    // crear nueva bin con la menor longitud disponible que quepa pieza+merma
-    let chosen = null;
-    for(const L of largos.slice().sort((a,b)=>a-b)){
-      if(L >= (pieza.len + merma)){ chosen = L; break; }
-    }
-    if(!chosen) chosen = pieza.len + merma; // caso extremo
-    const bin = { largo: chosen, piezas: [{ winId: pieza.winId, len: pieza.len }], restante: chosen - (pieza.len + merma), utilizada: pieza.len };
-    bins.push(bin);
-  }
+// NUEVO SOLVER CON SOBRANTES
+function solveCutsMultiLargo(piezas, largosDisponibles, merma = MERMA){
+    let bins = [];
+    piezas = piezas.sort((a,b) => b.len - a.len);
 
-  // Paso 2: mejora local (intentar mover piezas entre bins para reducir sobrantes)
-  // Limitamos iteraciones para no bloquear UI
-  const maxPasses = 3;
-  for(let pass=0; pass<maxPasses; pass++){
-    let moved = false;
-    // ordenar bins por restante descend (los más sobrantes intentamos vaciar)
-    const binsSorted = bins.slice().sort((a,b)=> (b.restante) - (a.restante));
-    for(const bigBin of binsSorted){
-      if(bigBin.restante < Math.max(...(lista.map(p=>p.len)))/2) continue; // solo si bastante sobrante
-      // intentar mover piezas pequeñas desde otros bins a este bigBin if fit
-      for(const donor of bins){
-        if(donor === bigBin) continue;
-        // recorrer piezas pequeñas del donor
-        for(let i = donor.piezas.length -1; i>=0; i--){
-          const p = donor.piezas[i];
-          const needed = p.len + merma;
-          if(bigBin.restante >= needed){
-            // move
-            donor.piezas.splice(i,1);
-            donor.restante += needed;
-            donor.utilizada -= p.len;
+    for (let pieza of piezas) {
+        let colocado = false;
 
-            bigBin.piezas.push({ winId: p.winId, len: p.len });
-            bigBin.restante -= needed;
-            bigBin.utilizada += p.len;
-            moved = true;
-            // break to re-evaluate
-            break;
-          }
+        // 1. Intentar colocar en sobrantes
+        if (colocarEnSobrante(pieza.len)) {
+            colocado = true;
+        } 
+        else {
+            // 2. Buscar tira existente disponible
+            for (let b of bins) {
+                if (b.restante >= pieza.len) {
+                    b.piezas.push(pieza);
+                    b.restante -= pieza.len;
+                    b.utilizada += pieza.len;
+                    colocado = true;
+                    break;
+                }
+            }
+
+            // 3. Si no cabe, crear nueva tira
+            if (!colocado) {
+                let largo = largosDisponibles[0]; // usar el más largo
+                let util = largo - merma;
+
+                bins.push({
+                    piezas: [pieza],
+                    restante: util - pieza.len,
+                    largo,
+                    utilizada: pieza.len
+                });
+            }
         }
-        if(moved) break;
-      }
     }
-    if(!moved) break;
-  }
 
-  bins.forEach((b,i)=>{ b.id = i+1; b.utilizada = b.utilizada || b.piezas.reduce((a,p)=>a+p.len,0); });
-  return bins;
+    // Agregar restos grandes a lista global
+    bins.forEach(b => {
+        if (b.restante > 20) sobrantesGlobales.push(b.restante);
+    });
+
+    return bins;
 }
 
 /* ----------------- CALCULAR (genera resumen de ventanas, herrajes, tiras por perfil y por largo) ----------------- */
