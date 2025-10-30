@@ -301,7 +301,7 @@ function solveCutsMultiLargo(piezas, largosDisponibles, merma = MERMA){
   bins.forEach((b,i)=>{ b.id = i+1; b.utilizada = b.utilizada || b.piezas.reduce((a,p)=>a+p.len,0); });
   return bins;
 }
-
+ // FUNCION CALCULAR AQUI SE EMPIEZAN A CALCULAAR TIRAS
 function calcular(){
   const filas = [...document.querySelectorAll('#tableWindows tbody tr')];
   if(filas.length === 0){ alert('Agrega al menos una ventana'); return; }
@@ -490,156 +490,202 @@ function calcular(){
   document.getElementById('summary').innerHTML = html;
 }
 
-/* ----------------- EXPORTAR PDF (landscape, con ventanas, herrajes, colores y sobrantes) ----------------- */
-function exportPdf(){
+ function exportPdf(){
   if(!lastResults || !lastResults.tirasPorPerfil){ alert('Primero presiona Calcular resumen.'); return; }
 
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const margin = 36;
-  let y = margin;
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 36;
+    let y = margin;
 
-  // Encabezado
-  doc.setFontSize(16);
-  doc.setTextColor(20,120,90);
-  doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
-  y += 22;
+    // Encabezado
+    doc.setFontSize(16);
+    doc.setTextColor(20,120,90);
+    doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y, {align:'center'});
+    y += 22;
 
-  doc.setFontSize(10);
-  doc.setTextColor(0,0,0);
-  doc.text(`Proyecto: ${lastResults.proyecto || '-'}`, margin, y);
-  doc.text(`Usuario: ${lastResults.usuario || '-'}`, margin + 300, y);
-  doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 200, y);
-  y += 14;
-
-  // Resumen de Herrajes (parte superior)
-  doc.setFontSize(11);
-  doc.text('RESUMEN DE HERRAJES Y ACCESORIOS', margin, y);
-  y += 10;
-  doc.setFontSize(9);
-  const herrajesEntries = Object.entries(lastResults.resumenHerrajes || {});
-  if(herrajesEntries.length === 0){
-    doc.text('No se registraron herrajes.', margin, y); y += 10;
-  } else {
-    herrajesEntries.forEach(([codigo, valor])=>{
-      doc.text(`${codigo}: ${Number(valor).toFixed(2)}`, margin, y); y += 8;
-    });
-  }
-  y += 6;
-
-  // Resumen de Ventanas (arriba)
-  doc.setFontSize(11);
-  doc.text('RESUMEN DE VENTANAS (ID = Ancho x Alto, Cantidad)', margin, y);
-  y += 10;
-  doc.setFontSize(9);
-  const ventanasEntries = Object.entries(lastResults.resumenVentanas || {});
-  if(ventanasEntries.length === 0){
-    doc.text('No hay ventanas registradas.', margin, y); y += 10;
-  } else {
-    ventanasEntries.forEach(([id, o])=>{
-      doc.text(`${id} = Ancho: ${o.ancho} mm, Alto: ${o.alto} mm, Cantidad: ${o.qty}`, margin, y);
-      y += 8;
-    });
-  }
-  y += 8;
-
-  // Resumen por largo
-  doc.setFontSize(11);
-  doc.text('RESUMEN DE TIRAS POR LARGO', margin, y);
-  y += 10;
-  doc.setFontSize(9);
-  const resumenPorLargo = lastResults.resumenPorLargo || {};
-  if(Object.keys(resumenPorLargo).length === 0){
-    doc.text('No se registraron tiras.', margin, y); y += 10;
-  } else {
-    Object.keys(resumenPorLargo).map(k=>parseInt(k)).sort((a,b)=>b-a).forEach(l => {
-      doc.text(`${resumenPorLargo[l]} tiras de ${l} mm`, margin, y); y += 8;
-    });
-  }
-  y += 8;
-
-  // Aprovechamiento total
-  doc.setFontSize(11);
-  doc.setTextColor(0,100,0);
-  doc.text(`Aprovechamiento total del material: ${lastResults.aprovechamiento.toFixed(2)}%`, margin, y);
-  doc.setTextColor(0,0,0);
-  y += 14;
-
-  // Diagramas por perfil
-  const barMaxWidth = Math.min(pageW - margin*2 - 220, 1000);
-  const barH = 16;
-  const gap = 36;
-
-  for(const [perfil, obj] of Object.entries(lastResults.tirasPorPerfil || {})){
-    const tiras = obj.tiras || [];
-    if(tiras.length === 0) continue;
-
-    if(y > pageH - 160){ doc.addPage(); y = margin; }
-    doc.setFontSize(12);
+    doc.setFontSize(10);
     doc.setTextColor(0,0,0);
-    doc.text(`${perfil} — Diagramas de corte`, margin, y);
-    y += 12;
+    doc.text(`Proyecto: ${lastResults.proyecto || '-'}`, margin, y);
+    doc.text(`Usuario: ${lastResults.usuario || '-'}`, margin + 300, y);
+    doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 200, y);
+    y += 14;
 
-    for(let i=0;i<tiras.length;i++){
-      const tira = tiras[i];
-      const capacidad = tira.largo || (obj.largoTira || parseInt((document.getElementById('globalLargo').value||'6000').split(',')[0]));
-      const scale = barMaxWidth / capacidad;
-      let x = margin + 160;
-      const baseY = y;
+    // Resumen de Herrajes
+    doc.setFontSize(11);
+    doc.text('RESUMEN DE HERRAJES Y ACCESORIOS', margin, y);
+    y += 10;
+    doc.setFontSize(9);
+    const herrajesEntries = Object.entries(lastResults.resumenHerrajes || {});
+    if(herrajesEntries.length === 0){
+      doc.text('No se registraron herrajes.', margin, y); y += 10;
+    } else {
+      herrajesEntries.forEach(([codigo, valor])=>{
+        doc.text(`${codigo}: ${Number(valor).toFixed(2)}`, margin, y); y += 8;
+      });
+    }
+    y += 6;
 
-      // Tira label
-      doc.setFontSize(9);
-      doc.text(`Tira ${i+1} (${capacidad} mm)`, margin + 120, baseY + barH/2 + 3, {align:'right'});
+    // Resumen de Ventanas
+    doc.setFontSize(11);
+    doc.text('RESUMEN DE VENTANAS (ID = Ancho x Alto, Cantidad)', margin, y);
+    y += 10;
+    doc.setFontSize(9);
+    const ventanasEntries = Object.entries(lastResults.resumenVentanas || {});
+    if(ventanasEntries.length === 0){
+      doc.text('No hay ventanas registradas.', margin, y); y += 10;
+    } else {
+      ventanasEntries.forEach(([id, o])=>{
+        const an = o.ancho || '-';
+        const al = o.alto || '-';
+        const qt = o.qty || 0;
+        doc.text(`${id} = Ancho: ${an} mm, Alto: ${al} mm, Cantidad: ${qt}`, margin, y);
+        y += 8;
+      });
+    }
+    y += 8;
 
-      // container
-      doc.setDrawColor(120);
-      doc.rect(x, baseY, barMaxWidth, barH);
+    // Resumen por largo
+    doc.setFontSize(11);
+    doc.text('RESUMEN DE TIRAS POR LARGO', margin, y);
+    y += 10;
+    doc.setFontSize(9);
+    const resumenPorLargo = lastResults.resumenPorLargo || {};
+    if(Object.keys(resumenPorLargo).length === 0){
+      doc.text('No se registraron tiras.', margin, y); y += 10;
+    } else {
+      Object.keys(resumenPorLargo).map(k=>parseInt(k)).sort((a,b)=>b-a).forEach(l => {
+        doc.text(`${resumenPorLargo[l]} tiras de ${l} mm`, margin, y); y += 8;
+      });
+    }
+    y += 8;
 
-      // draw pieces
-      for(let ci=0; ci<tira.piezas.length; ci++){
-        const pieza = tira.piezas[ci];
-        const seg = Math.max(1, pieza.len * scale); // evitar 0 width
-        const color = colorForId(pieza.winId);
-        doc.setFillColor(color[0], color[1], color[2]);
-        doc.rect(x, baseY, seg, barH, 'F');
+    // Aprovechamiento
+    doc.setFontSize(11);
+    doc.setTextColor(0,100,0);
+    doc.text(`Aprovechamiento total del material: ${(lastResults.aprovechamiento || 0).toFixed(2)}%`, margin, y);
+    doc.setTextColor(0,0,0);
+    y += 14;
 
-        // etiqueta dentro si cabe
-        doc.setFontSize(7);
-        if(seg > 40){
-          doc.setTextColor(255,255,255);
-          const etiqueta = `${pieza.winId} - ${pieza.len} mm`;
-          doc.text(etiqueta, x + seg/2, baseY + barH/2 + 3, {align:'center'});
-        } else {
-          doc.setTextColor(0,0,0);
-          doc.text(`${pieza.len} mm`, x + seg/2, baseY - 2, {align:'center'});
+    // Diagramas por perfil (robusto)
+    const barMaxWidth = Math.min(pageW - margin*2 - 220, 1000);
+    const barH = 18;
+    const gap = 48;
+    const perfilGap = 16;
+    const containerX = margin + 160;
+    const containerW = barMaxWidth;
+
+    const profiles = lastResults.tirasPorPerfil || {};
+    for(const [perfil, obj] of Object.entries(profiles)){
+      const tiras = (obj && obj.tiras) ? obj.tiras : [];
+      if(tiras.length === 0) continue;
+
+      if(y > pageH - 160){ doc.addPage(); y = margin; }
+      doc.setFontSize(12);
+      doc.setTextColor(0,0,0);
+      doc.text(`${perfil} — Diagramas de corte`, margin, y);
+      y += 12;
+
+      for(let i=0;i<tiras.length;i++){
+        const tira = tiras[i] || {};
+        // garantías de campos
+        tira.piezas = Array.isArray(tira.piezas) ? tira.piezas : [];
+        tira.utilizada = Number(tira.utilizada) || tira.piezas.reduce((a,p)=>a + (Number(p.len)||0), 0);
+        tira.restante = Number(tira.restante);
+        if(isNaN(tira.restante)) {
+          // calcular sobrante si no existe (seguridad)
+          const capacidadTemp = Number(tira.largo) || parseInt((document.getElementById('globalLargo').value||'6000').split(',')[0]) || 6000;
+          tira.restante = Math.max(0, capacidadTemp - tira.utilizada - MERMA);
         }
-        x += seg;
-      }
+        const capacidad = Number(tira.largo) || parseInt((document.getElementById('globalLargo').value||'6000').split(',')[0]) || 6000;
+        const safeCapacidad = capacidad > 0 ? capacidad : 6000;
+        const scale = (safeCapacidad > 0) ? (barMaxWidth / safeCapacidad) : 1;
 
-      // sobrante gris
-      if(tira.restante > 0){
-        const sobraW = tira.restante * scale;
-        doc.setFillColor(200,200,200);
-        doc.rect(x, baseY, sobraW, barH, 'F');
+        // reservar espacio en página
+        const neededSpace = barH + gap;
+        if(y + neededSpace > pageH - 80){
+          doc.addPage();
+          y = margin;
+        }
+
+        // label tira
+        doc.setFontSize(9);
+        doc.text(`Tira ${i+1} (${safeCapacidad} mm)`, margin + 120, y + barH/2 + 3, {align:'right'});
+
+        // marco
+        doc.setDrawColor(120);
+        doc.rect(containerX, y, containerW, barH);
+
+        // dibujar piezas (control overflow)
+        let x = containerX;
+        for(let ci=0; ci<tira.piezas.length; ci++){
+          const pieza = tira.piezas[ci] || {};
+          const piezaLen = Number(pieza.len) || 0;
+          // ancho visual mínimo para que se vea
+          const rawSeg = Math.max(2, Math.round(piezaLen * scale));
+          const maxAllowed = Math.max(0, containerX + containerW - x);
+          const seg = Math.max(0, Math.min(rawSeg, maxAllowed));
+          if(seg <= 0) break;
+
+          const color = colorForId(pieza.winId || '');
+          doc.setFillColor(color[0], color[1], color[2]);
+          doc.rect(x, y, seg, barH, 'F');
+
+          doc.setFontSize(7);
+          if(seg > 50){
+            doc.setTextColor(255,255,255);
+            const etiqueta = `${pieza.winId || '-'} - ${piezaLen} mm`;
+            doc.text(etiqueta, x + seg/2, y + barH/2 + 3, {align:'center'});
+          } else {
+            doc.setTextColor(0,0,0);
+            doc.text(`${piezaLen} mm`, x + seg/2, y - 4, {align:'center'});
+          }
+
+          x += seg;
+          if(x >= containerX + containerW - 1) break;
+        }
+
+        // sobrante
+        const sobranteReal = Math.max(0, Math.round(tira.restante || (safeCapacidad - tira.utilizada - MERMA)));
+        if(sobranteReal > 0 && x < containerX + containerW - 2){
+          const sobraW = Math.round(sobranteReal * scale);
+          const maxAllowed = containerX + containerW - x;
+          const finalSobraW = Math.min(sobraW, Math.max(0, Math.round(maxAllowed)));
+          if(finalSobraW > 0){
+            doc.setFillColor(200,200,200);
+            doc.rect(x, y, finalSobraW, barH, 'F');
+            doc.setFontSize(8);
+            doc.setTextColor(0,0,0);
+            if(finalSobraW > 60){
+              doc.text(`Sobrante ${tira.restante} mm`, x + finalSobraW/2, y + barH/2 + 3, {align:'center'});
+            } else {
+              doc.text(`Sobrante ${tira.restante} mm`, x + Math.max(10, finalSobraW/2), y - 4, {align:'center'});
+            }
+          }
+        }
+
+        // etiqueta utilizada
         doc.setFontSize(8);
         doc.setTextColor(0,0,0);
-        doc.text(`Sobrante ${tira.restante} mm`, x + Math.max(10, sobraW/2), baseY + barH/2 + 3, {align:'center'});
+        doc.text(`Tira utilizada: ${tira.utilizada} mm`, containerX + containerW/2, y + barH + 14, {align:'center'});
+
+        y += gap;
+        if(y > pageH - 100){ doc.addPage(); y = margin; }
       }
 
-      // etiqueta tira utilizada
-      doc.setFontSize(8);
-      doc.setTextColor(0,0,0);
-      doc.text(`Tira utilizada: ${tira.utilizada} mm`, margin + barMaxWidth/2, baseY + barH + 14, {align:'center'});
-
-      y += gap;
-      if(y > pageH - 100){ doc.addPage(); y = margin; }
+      y += perfilGap;
     }
-    y += 10;
-  }
 
-  doc.save(`Cortes_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'_')}.pdf`);
+    // guardar
+    doc.save(`Cortes_${(new Date()).toISOString().slice(0,19).replace(/[:T]/g,'_')}.pdf`);
+    console.log('Export PDF: OK');
+  } catch(err) {
+    console.error('Error en exportPdf:', err);
+    alert('Ocurrió un error al generar el PDF. Revisa la consola para más detalles.');
+  }
 }
 
 /* ----------------- UTIL ----------------- */
