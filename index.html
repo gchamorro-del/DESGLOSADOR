@@ -183,73 +183,123 @@ function addRow(){
   tbody.appendChild(tr);
 }
 
-// LISTA DE SOBRANTES DISPONIBLES
+// GLOBAL: lista de sobrantes disponibles
 let sobrantesGlobales = [];
 
-// Función que intenta colocar una pieza en sobrantes existentes
-function colocarEnSobrante(longitud) {
-    for (let i = 0; i < sobrantesGlobales.length; i++) {
-        if (sobrantesGlobales[i] >= longitud) {
+/* ----------------- SOLVER MULTI-LARGO (BFD con uso de sobrantes y merma consistente) ----------------- */
+function solveCutsMultiLargo(piezas, largosDisponibles, merma = MERMA){
+  if(!piezas || piezas.length === 0) return [];
+  // normalizar largos disponibles (desc)
+  const largos = Array.from(new Set((largosDisponibles||[]).map(v=>parseInt(v)).filter(n=>!isNaN(n) && n>0))).sort((a,b)=>b-a);
+  if(largos.length === 0) largos.push(6000);
 
-            // Usar parte del sobrante
-            sobrantesGlobales[i] -= longitud;
+  // ordenar piezas desc por largo (heavier first)
+  const lista = piezas.slice().map(p=>({ winId: p.winId, len: Number(p.len) })).filter(p=>p.len>0);
+  lista.sort((a,b)=>b.len - a.len);
 
-            // Eliminar sobrantes muy pequeños
-            if (sobrantesGlobales[i] < 20) {
-                sobrantesGlobales.splice(i, 1);
-            }
+  const bins = []; // cada bin: { largo, piezas:[{winId,len}], restante, utilizada }
 
-            return true;
-        }
+  // Helper: intentar colocar en el mejor sobrante (el que deja menor resto)
+  function placeInSobrantes(pieza) {
+    let bestIdx = -1;
+    let bestRest = Infinity;
+    const need = pieza.len + merma;
+    for(let i=0;i<sobrantesGlobales.length;i++){
+      const s = sobrantesGlobales[i];
+      if(s >= need && (s - need) < bestRest){
+        bestRest = s - need;
+        bestIdx = i;
+      }
+    }
+    if(bestIdx >= 0){
+      sobrantesGlobales[bestIdx] -= need;
+      if(sobrantesGlobales[bestIdx] < 20) sobrantesGlobales.splice(bestIdx,1);
+      return true;
     }
     return false;
-}
+  }
 
-// NUEVO SOLVER CON SOBRANTES
-function solveCutsMultiLargo(piezas, largosDisponibles, merma = MERMA){
-    let bins = [];
-    piezas = piezas.sort((a,b) => b.len - a.len);
-
-    for (let pieza of piezas) {
-        let colocado = false;
-
-        // 1. Intentar colocar en sobrantes
-        if (colocarEnSobrante(pieza.len)) {
-            colocado = true;
-        } 
-        else {
-            // 2. Buscar tira existente disponible
-            for (let b of bins) {
-                if (b.restante >= pieza.len) {
-                    b.piezas.push(pieza);
-                    b.restante -= pieza.len;
-                    b.utilizada += pieza.len;
-                    colocado = true;
-                    break;
-                }
-            }
-
-            // 3. Si no cabe, crear nueva tira
-            if (!colocado) {
-                let largo = largosDisponibles[0]; // usar el más largo
-                let util = largo - merma;
-
-                bins.push({
-                    piezas: [pieza],
-                    restante: util - pieza.len,
-                    largo,
-                    utilizada: pieza.len
-                });
-            }
+  // Helper: intentar colocar en el mejor bin existente
+  function placeInBestBin(pieza){
+    let best = null; let bestRest = Infinity;
+    const need = pieza.len + merma;
+    for(const b of bins){
+      if(b.restante >= need){
+        const r = b.restante - need;
+        if(r < bestRest){
+          bestRest = r; best = b;
         }
+      }
     }
+    if(best){
+      best.piezas.push({ winId: pieza.winId, len: pieza.len });
+      best.restante -= need;
+      best.utilizada += pieza.len;
+      return true;
+    }
+    return false;
+  }
 
-    // Agregar restos grandes a lista global
-    bins.forEach(b => {
-        if (b.restante > 20) sobrantesGlobales.push(b.restante);
-    });
+  // Inserción principal
+  for(const pieza of lista){
+    if(placeInSobrantes(pieza)) continue;
+    if(placeInBestBin(pieza)) continue;
 
-    return bins;
+    // crear nueva tira con el menor largo que quepa
+    const need = pieza.len + merma;
+    let chosen = null;
+    for(const L of largos.slice().sort((a,b)=>a-b)){
+      if(L >= need){ chosen = L; break; }
+    }
+    if(!chosen) chosen = Math.max(need, largos[0] || 6000);
+
+    const nueva = {
+      piezas: [{ winId: pieza.winId, len: pieza.len }],
+      largo: chosen,
+      restante: chosen - need,
+      utilizada: pieza.len
+    };
+    bins.push(nueva);
+  }
+
+  // Mejora local (mover piezas pequeñas para llenar mejor tiras)
+  const maxPasses = 3;
+  for(let pass=0; pass<maxPasses; pass++){
+    let moved=false;
+    const targets = bins.slice().sort((a,b)=>b.restante - a.restante);
+    for(const target of targets){
+      for(const donor of bins){
+        if(donor === target) continue;
+        donor.piezas.sort((a,b)=>a.len - b.len);
+        for(let i=0;i<donor.piezas.length;i++){
+          const p = donor.piezas[i];
+          const need = p.len + merma;
+          if(target.restante >= need){
+            donor.piezas.splice(i,1);
+            donor.restante += need;
+            donor.utilizada -= p.len;
+
+            target.piezas.push({ winId: p.winId, len: p.len });
+            target.restante -= need;
+            target.utilizada += p.len;
+
+            moved = true;
+            break;
+          }
+        }
+        if(moved) break;
+      }
+    }
+    if(!moved) break;
+  }
+
+  // Guardar sobrantes grandes
+  for(const b of bins){
+    if(b.restante > 20) sobrantesGlobales.push(b.restante);
+  }
+
+  bins.forEach((b,i)=>{ b.id = i+1; b.utilizada = b.utilizada || b.piezas.reduce((a,p)=>a+p.len,0); });
+  return bins;
 }
 
 /* ----------------- CALCULAR (genera resumen de ventanas, herrajes, tiras por perfil y por largo) ----------------- */
