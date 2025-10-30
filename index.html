@@ -302,25 +302,29 @@ function solveCutsMultiLargo(piezas, largosDisponibles, merma = MERMA){
   return bins;
 }
 
-/* ----------------- CALCULAR (genera resumen de ventanas, herrajes, tiras por perfil y por largo) ----------------- */
 function calcular(){
   const filas = [...document.querySelectorAll('#tableWindows tbody tr')];
   if(filas.length === 0){ alert('Agrega al menos una ventana'); return; }
 
   // leer largos globales
   const rawLargos = (document.getElementById('globalLargo').value || '6000').split(',').map(s=>s.trim()).filter(s=>s.length>0);
-  const largosDisponiblesGlobal = rawLargos.map(v => parseInt(v)).filter(n=>!isNaN(n) && n>0).sort((a,b)=>b-a);
+  const largosDisponiblesGlobal = Array.from(new Set(rawLargos.map(v => parseInt(v)).filter(n=>!isNaN(n) && n>0))).sort((a,b)=>b-a);
   if(largosDisponiblesGlobal.length === 0) largosDisponiblesGlobal.push(6000);
+
+  // reset global sobrantes al comenzar un cálculo limpio
+  sobrantesGlobales = [];
 
   const resumenPorPerfil = {};
   const tirasPorPerfil = {}; // perfil -> { tiras: [], largosUsados: [] }
   const resumenHerrajes = {};
   const resumenVentanas = {}; // winId -> { ancho, alto, qty }
+  const piezasPorPerfil = {}; // temporal: perfil -> { piezas: [{winId,len}], largosSet: Set() }
 
   let totalUsado = 0;
   let totalDisponible = 0;
   const resumenPorLargo = {}; // largo -> count
 
+  // --- PRIMER PASO: recolectar TODAS las piezas por perfil (de todas las filas) ---
   for(const tr of filas){
     const tds = tr.querySelectorAll('td');
     const winId = tds[0].querySelector('input').value.trim() || '-';
@@ -329,8 +333,7 @@ function calcular(){
     const qty = parseInt(tds[3].querySelector('input').value) || 1;
     const sistema = tds[4].querySelector('select').value;
     const rawRow = (tds[5].querySelector('input').value || '').split(',').map(s=>s.trim()).filter(s=>s.length>0);
-    const rowLargos = rawRow.map(v=>parseInt(v)).filter(n=>!isNaN(n) && n>0).sort((a,b)=>b-a);
-    const largosParaFila = (rowLargos.length ? rowLargos : largosDisponiblesGlobal);
+    const rowLargos = Array.from(new Set(rawRow.map(v=>parseInt(v)).filter(n=>!isNaN(n) && n>0)));
 
     // registrar ventana en resumen de ventanas
     if(!resumenVentanas[winId]) resumenVentanas[winId] = { ancho, alto, qty: 0 };
@@ -341,13 +344,14 @@ function calcular(){
 
     for(const [perfil, def] of Object.entries(sys)){
       if(def.tipo === "herraje"){
+        // herraje directo: contabilizar por ventana
         const cantidadVentanas = qty;
         const cantidadTotal = (def.cantidad || 1) * cantidadVentanas;
         resumenHerrajes[perfil] = (resumenHerrajes[perfil] || 0) + cantidadTotal;
         continue;
       }
 
-      // construir cortes por perfil
+      // construir cortes por perfil (para esta ventana)
       const cortesBase = [];
       for(let i=0;i<(def.altos||0);i++) cortesBase.push(alto);
       const anchoCorte = def.dividirAncho ? (ancho/2) : ancho;
@@ -358,36 +362,66 @@ function calcular(){
       const cortesTotales = [];
       for(let k=0;k<qty;k++) cortesTotales.push(...cortesBase);
 
-      // piezas con referencia a ventana
-      const piezas = cortesTotales.map(len => ({ winId, len }));
+      // inicializar estructura por perfil si no existe
+      piezasPorPerfil[perfil] = piezasPorPerfil[perfil] || { piezas: [], largosSet: new Set() };
 
-      // resolver cortes para este conjunto y largosParaFila
-      const bins = solveCutsMultiLargo(piezas, largosParaFila, MERMA);
+      // añadir largos de fila si hay override; si no, se usará el global más adelante
+      if(rowLargos.length){
+        rowLargos.forEach(L=>piezasPorPerfil[perfil].largosSet.add(L));
+      } else {
+        // para mantener compatibilidad, también incluimos los globales en el set
+        largosDisponiblesGlobal.forEach(L=>piezasPorPerfil[perfil].largosSet.add(L));
+      }
 
-      // acumular por perfil
-      resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + bins.length;
-      tirasPorPerfil[perfil] = tirasPorPerfil[perfil] || { tiras: [], largosUsados: [] };
-      bins.forEach(b => {
-        // estandarizar estructura: piezas: [{winId,len}], restante, largo, utilizada
-        tirasPorPerfil[perfil].tiras.push({
-          piezas: b.piezas.map(p=>({ winId: p.winId, len: p.len })),
-          restante: b.restante,
-          largo: b.largo,
-          utilizada: b.utilizada
-        });
-        tirasPorPerfil[perfil].largosUsados.push(b.largo);
-        resumenPorLargo[b.largo] = (resumenPorLargo[b.largo] || 0) + 1;
-
-        // contabilizar aprovechamiento
-        const largoUtil = (b.largo || Math.max(...largosDisponiblesGlobal)) - MERMA;
-        const usado = b.piezas.reduce((a,p)=>a+p.len,0);
-        totalUsado += usado;
-        totalDisponible += Math.max(largoUtil, 0);
-      });
+      // añadir piezas referenciadas a esta ventana
+      cortesTotales.forEach(len => piezasPorPerfil[perfil].piezas.push({ winId, len }));
     }
   }
 
-  // calcular herrajes dependientes (calcularSegun)
+  // --- SEGUNDO PASO: resolver por cada perfil (una sola llamada al solver por perfil) ---
+  for(const [perfil, info] of Object.entries(piezasPorPerfil)){
+    const piezas = info.piezas || [];
+    if(piezas.length === 0) continue;
+
+    // preparar largos a usar: preferimos los largos recogidos por fila (si se usaron overrides),
+    // si no hay específicos, usamos los globales.
+    let largosParaPerfil = Array.from(info.largosSet).filter(n=>!isNaN(n) && n>0);
+    if(largosParaPerfil.length === 0) largosParaPerfil = largosDisponiblesGlobal.slice();
+
+    // ordenar y eliminar duplicados
+    largosParaPerfil = Array.from(new Set(largosParaPerfil)).sort((a,b)=>b-a);
+
+    // llamar al solver una vez por perfil con el conjunto completo de piezas
+    const bins = solveCutsMultiLargo(piezas, largosParaPerfil, MERMA);
+
+    // acumular por perfil
+    resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + bins.length;
+    tirasPorPerfil[perfil] = tirasPorPerfil[perfil] || { tiras: [], largosUsados: [] };
+
+    bins.forEach(b => {
+      // estandarizar estructura: piezas: [{winId,len}], restante, largo, utilizada
+      const piezasCopy = (b.piezas || []).map(p=>({ winId: p.winId, len: p.len }));
+      const restante = Math.max(0, Math.round(b.restante || 0));
+      const largoUsed = b.largo || ((largosParaPerfil && largosParaPerfil[0]) || 6000);
+      const utilizada = b.utilizada || piezasCopy.reduce((a,p)=>a+p.len,0);
+
+      tirasPorPerfil[perfil].tiras.push({
+        piezas: piezasCopy,
+        restante,
+        largo: largoUsed,
+        utilizada
+      });
+      tirasPorPerfil[perfil].largosUsados.push(largoUsed);
+
+      resumenPorLargo[largoUsed] = (resumenPorLargo[largoUsed] || 0) + 1;
+
+      totalUsado += utilizada;
+      // cuando contamos totalDisponible, consideramos (largo - MERMA) por tira como ya estabas haciendo
+      totalDisponible += Math.max(largoUsed - MERMA, 0);
+    });
+  }
+
+  // calcular herrajes dependientes (calcularSegun) — igual que antes
   for(const [nombreSistema, perfiles] of Object.entries(SYSTEMS)){
     for(const [perfil, def] of Object.entries(perfiles)){
       if(def.tipo === "herraje" && def.calcularSegun){
@@ -430,7 +464,7 @@ function calcular(){
     totalDisponible
   };
 
-  // construir HTML resumen ARRIBA
+  // construir HTML resumen ARRIBA (igual que antes)
   let html = `<b>Resumen — Tiras totales por perfil</b><br>`;
   if(Object.keys(resumenPorPerfil).length === 0) html += '<span class="muted">No hay perfiles (tal vez solo herrajes o datos faltantes)</span>';
   else {
@@ -447,7 +481,6 @@ function calcular(){
     });
   }
 
-  // resumen general
   const totalTiras = Object.values(resumenPorLargo).reduce((a,b)=>a+b,0);
   const totalSobrante = Math.max(0, Math.round((totalDisponible - totalUsado)));
   html += `<br><b>Total de tiras:</b> ${totalTiras}<br>`;
