@@ -489,28 +489,26 @@ function exportPdf() {
           doc.setFillColor(color[0], color[1], color[2]);
           doc.rect(x, y, segFinal, barH, 'F');
 
-          // ------- Etiqueta superior: ID de ventana -------
-          // Se dibuja encima de la barra (2 líneas por si acaso)
-          const idY = y - 3; // un pelín arriba de la barra
-          doc.setTextColor(0);
-          doc.setFontSize(8);
-          const idTexto = String(p.winId || '-');
-          doc.text(idTexto, x + segFinal / 2, idY, { align: 'center' });
+         // ------- Etiquetas optimizadas (mejora #6) -------
+const medidaTxt = `${len} mm`;
+const idTxt = String(p.winId || '-');
 
-          // ------- Etiqueta de medida -------
-          // Si el segmento es ancho >= 60 px, la medida va adentro (blanco para contrastar).
-          // Si es estrecho (<60 px), ponemos la medida arriba (debajo del ID) para que se lea.
-          const medidaTxt = `${len} mm`;
-          if (segFinal >= 60) {
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(8);
-            doc.text(medidaTxt, x + segFinal / 2, y + barH / 2 + 4, { align: 'center' });
-          } else {
-            // Medida por arriba, debajo del ID (pequeño offset)
-            doc.setTextColor(0);
-            doc.setFontSize(7);
-            doc.text(medidaTxt, x + segFinal / 2, idY - 9, { align: 'center' });
-          }
+if (segFinal >= 60) {
+  // Segmentos amplios → mostrar separado (arriba ID, dentro medida)
+  doc.setTextColor(0);
+  doc.setFontSize(8);
+  doc.text(idTxt, x + segFinal / 2, y - 4, { align: 'center' });
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8);
+  doc.text(medidaTxt, x + segFinal / 2, y + barH / 2 + 4, { align: 'center' });
+} else {
+  // Segmentos pequeños → mostrar compacto "V2 (250)"
+  doc.setTextColor(0);
+  doc.setFontSize(7);
+  doc.text(`${idTxt} (${len})`, x + segFinal / 2, y - 4, { align: 'center' });
+}
+
 
           // ------- Línea divisoria negra entre cortes -------
           doc.setDrawColor(0);
