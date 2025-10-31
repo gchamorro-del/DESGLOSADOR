@@ -490,14 +490,14 @@ function exportPdf() {
           doc.rect(x, y, segFinal, barH, 'F');
 
          // ------- Etiquetas optimizadas (mejora #6) -------
-const medidaTxt = `${len} mm`;
-const idTxt = String(p.winId || '-');
+         const medidaTxt = `${len} mm`;
+        const idTxt = String(p.winId || '-');
 
-if (segFinal >= 60) {
-  // Segmentos amplios → mostrar separado (arriba ID, dentro medida)
-  doc.setTextColor(0);
-  doc.setFontSize(8);
-  doc.text(idTxt, x + segFinal / 2, y - 4, { align: 'center' });
+      if (segFinal >= 60) {
+      // Segmentos amplios → mostrar separado (arriba ID, dentro medida)
+      doc.setTextColor(0);
+      doc.setFontSize(8);
+      doc.text(idTxt, x + segFinal / 2, y - 4, { align: 'center' });
 
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(8);
@@ -544,29 +544,43 @@ if (segFinal >= 60) {
         }
 
         // ------- Escala bajo la barra -------
-        doc.setDrawColor(180);
-        doc.line(containerX, y + barH + 6, containerX + containerW, y + barH + 6);
-        doc.setFontSize(7);
-        doc.setTextColor(0);
-        doc.text('0', containerX, y + barH + 16);
-        doc.text(`${capacidad} mm`, containerX + containerW, y + barH + 16, { align: 'right' });
+       // ------- Escala bajo la barra -------
+doc.setDrawColor(180);
+doc.line(containerX, y + barH + 6, containerX + containerW, y + barH + 6);
+doc.setFontSize(7);
+doc.setTextColor(0);
+doc.text('0', containerX, y + barH + 16);
+doc.text(`${capacidad} mm`, containerX + containerW, y + barH + 16, { align: 'right' });
 
-    // ---------- Pie de página (número de página) ----------
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(120);
-      doc.text(`Página ${i} de ${pageCount} — Generado por Optimizador Técnico de Cortes`, pageW / 2, pageH - 18, { align: 'center' });
-    }
+// Avanzar a la siguiente barra
+y += gap;
+} // <-- cierra el for (tiras)
 
-    // Guardar PDF
-    doc.save(`Cortes_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.pdf`);
-  } catch (err) {
-    console.error('Error en exportPdf:', err);
-    alert('Ocurrió un error al generar el PDF. Revisa la consola para más detalles.');
-  }
+y += 6; // pequeño espacio entre perfiles
+} // <-- cierra el for (perfiles)
+
+// ---------- Pie de página (número de página) ----------
+const pageCount = doc.internal.getNumberOfPages();
+for (let i = 1; i <= pageCount; i++) {
+  doc.setPage(i);
+  doc.setFontSize(8);
+  doc.setTextColor(120);
+  doc.text(
+    `Página ${i} de ${pageCount} — Generado por Optimizador Técnico de Cortes`,
+    pageW / 2,
+    pageH - 18,
+    { align: 'center' }
+  );
 }
+
+// Guardar PDF
+doc.save(`Cortes_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.pdf`);
+} catch (err) {
+  console.error('Error en exportPdf:', err);
+  alert('Ocurrió un error al generar el PDF. Revisa la consola para más detalles.');
+}
+} // <-- cierra function exportPdf
+
 
 /* ----------------- UTIL: BORRAR TODO ----------------- */
 function borrarTodo() {
