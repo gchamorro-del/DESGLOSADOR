@@ -551,17 +551,6 @@ if (segFinal >= 60) {
         doc.text('0', containerX, y + barH + 16);
         doc.text(`${capacidad} mm`, containerX + containerW, y + barH + 16, { align: 'right' });
 
-        // Leyenda centrada: "Tira utilizada"
-        doc.setFontSize(8);
-        doc.setTextColor(0);
-        doc.text(`Tira utilizada: ${Number(t.utilizada || 0)} mm`, containerX + containerW / 2, y + barH + 28, { align: 'center' });
-
-        y += gap;
-      }
-
-      y += 6; // pequeño espacio entre perfiles
-    }
-
     // ---------- Pie de página (número de página) ----------
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
