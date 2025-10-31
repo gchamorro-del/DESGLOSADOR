@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8"/>
-<title>Optimizador Técnico de Cortes — Completo</title>
+<title>Optimizador Técnico de Cortes — Versión Final Mejorada</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -108,365 +108,456 @@
 </div>
 
 <script>
-const PASSWORD = "1234";
-const MERMA = 50;
-let currentUser = null;
-let lastResults = null;
+const PASSWORD="1234";
+const MERMA=50;
+let currentUser=null;
+let lastResults=null;
 
-const SYSTEMS = {
-  "Corrediza Europea 3 Hojas": {
-    "MTG1399": { altos: 2, anchos: 2 },
-    "MTG2177": { altos: 4, anchos: 4, dividirAncho: true },
-    "MTG2176": { altos: 4, anchos: 0 },
-    "F04": { tipo: "herraje", calcularSegun: { "MTG2177": 2, "MTG2176": 1 } },
-    "EUAA05L": { cantidad: 20, tipo: "herraje" },
-    "EUAP01": { cantidad: 1.5, tipo: "herraje" },
-    "EUCH01": { cantidad: 2, tipo: "herraje" },
-    "EUCH02": { cantidad: 2, tipo: "herraje" },
-  },
-  "Fija": {
-    "MTG2180": { altos: 2, anchos: 2 },
-    "MTG2184": { altos: 2, anchos: 2 },
-    "EUAA01": { cantidad: 4, tipo: "herraje" },
-  },
-  "Batiente": {},
-  "Proyección": {},
-  "Otro": {}
-};
+const SYSTEMS={
+"Corrediza Europea 3 Hojas":{
+"MTG1399":{altos:2,anchos:2},
+"MTG2177":{altos:4,anchos:4,dividirAncho:true},
+"MTG2176":{altos:4,anchos:0},
+"F04":{tipo:"herraje",calcularSegun:{"MTG2177":2,"MTG2176":1}},
+"EUAA05L":{cantidad:20,tipo:"herraje"},
+"EUAP01":{cantidad:1.5,tipo:"herraje"},
+"EUCH01":{cantidad:2,tipo:"herraje"},
+"EUCH02":{cantidad:2,tipo:"herraje"}},
+"Fija":{"MTG2180":{altos:2,anchos:2},"MTG2184":{altos:2,anchos:2},"EUAA01":{cantidad:4,tipo:"herraje"}},
+"Batiente":{},"Proyección":{},"Otro":{}};
 
 /* LOGIN */
-document.getElementById('loginBtn').addEventListener('click', () => {
-  const u = document.getElementById('loginUser').value.trim();
-  const p = document.getElementById('loginPass').value;
-  if(!u || !p){ alert('Ingrese usuario y contraseña'); return; }
-  if(p !== PASSWORD){ alert('Contraseña incorrecta'); document.getElementById('loginPass').value = ''; return; }
-  currentUser = u;
-  document.getElementById('hdrUser').innerText = `Usuario: ${u}`;
-  document.getElementById('loginSection').style.display = 'none';
-  document.getElementById('appSection').style.display = 'block';
-  addRow();
-  const saved = JSON.parse(localStorage.getItem('cortesApp')||'{}');
-  if(saved.proyecto) document.getElementById('projectName').value = saved.proyecto;
-  if(saved.largos) document.getElementById('globalLargo').value = saved.largos;
+document.getElementById('loginBtn').addEventListener('click',()=>{
+ const u=document.getElementById('loginUser').value.trim();
+ const p=document.getElementById('loginPass').value;
+ if(!u||!p){alert('Ingrese usuario y contraseña');return;}
+ if(p!==PASSWORD){alert('Contraseña incorrecta');document.getElementById('loginPass').value='';return;}
+ currentUser=u;
+ document.getElementById('hdrUser').innerText=`Usuario: ${u}`;
+ document.getElementById('loginSection').style.display='none';
+ document.getElementById('appSection').style.display='block';
+ addRow();
 });
 
 /* INTERFAZ */
 function addRow(){
-  const tbody = document.querySelector('#tableWindows tbody');
-  const tr = document.createElement('tr');
-  const defaultLargo = document.getElementById('globalLargo').value || '6000';
-  tr.innerHTML = `
-    <td><input type="text" placeholder="V1"></td>
-    <td><input type="number" placeholder="1000" min="0" step="1"></td>
-    <td><input type="number" placeholder="1500" min="0" step="1"></td>
-    <td><input type="number" value="1" min="1" step="1"></td>
-    <td><select>${Object.keys(SYSTEMS).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></td>
-    <td><input type="text" value="${defaultLargo}" placeholder="Opcional: 6000,5000"></td>
-    <td><button class="btn ghost" title="Eliminar fila" onclick="this.closest('tr').remove()">X</button></td>
-  `;
-  tbody.appendChild(tr);
+ const tbody=document.querySelector('#tableWindows tbody');
+ const tr=document.createElement('tr');
+ const defaultLargo=document.getElementById('globalLargo').value||'6000';
+ tr.innerHTML=`
+ <td><input type="text" placeholder="V1"></td>
+ <td><input type="number" placeholder="1000" min="0"></td>
+ <td><input type="number" placeholder="1500" min="0"></td>
+ <td><input type="number" value="1" min="1"></td>
+ <td><select>${Object.keys(SYSTEMS).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></td>
+ <td><input type="text" value="${defaultLargo}" placeholder="Opcional: 6000,5000"></td>
+ <td><button class="btn ghost" onclick="this.closest('tr').remove()">X</button></td>`;
+ tbody.appendChild(tr);
 }
 
-/* UTILIDAD COLOR */
+/* COLOR */
 function colorForId(id){
-  const hash = [...String(id)].reduce((a,c)=>a+c.charCodeAt(0),0);
-  const hue = hash % 360;
-  return hslToRgb(hue/360,0.65,0.5);
+ const hash=[...String(id)].reduce((a,c)=>a+c.charCodeAt(0),0);
+ const hue=hash%360;
+ return hslToRgb(hue/360,0.65,0.5);
 }
-function hslToRgb(h, s, l){
-  let r,g,b;
-  if(s==0){ r=g=b=l; }
-  else{
-    const hue2rgb=(p,q,t)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
-    const q = l < 0.5 ? l*(1+s) : l+s-l*s;
-    const p = 2*l-q;
-    r = hue2rgb(p,q,h+1/3); g = hue2rgb(p,q,h); b = hue2rgb(p,q,h-1/3);
-  }
-  return [Math.round(r*255),Math.round(g*255),Math.round(b*255)];
+function hslToRgb(h,s,l){
+ let r,g,b;
+ if(s==0){r=g=b=l;}
+ else{
+ const hue2rgb=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
+ const q=l<0.5?l*(1+s):l+s-l*s;
+ const p=2*l-q;
+ r=hue2rgb(p,q,h+1/3);g=hue2rgb(p,q,h);b=hue2rgb(p,q,h-1/3);}
+ return[Math.round(r*255),Math.round(g*255),Math.round(b*255)];
 }
 
-/* SOLVER LOCAL POR PERFIL */
-function solveCutsMultiLargo(piezas, largosDisponibles, merma = MERMA){
-  if(!piezas || piezas.length === 0) return [];
-  const largos = Array.from(new Set((largosDisponibles||[]).map(v=>parseInt(v)).filter(n=>!isNaN(n) && n>0))).sort((a,b)=>b-a);
-  if(largos.length === 0) largos.push(6000);
-
-  const lista = piezas.slice().map(p=>({ winId: p.winId, len: Number(p.len) })).filter(p=>p.len>0).sort((a,b)=>b.len - a.len);
-  const bins = [];
-  const sobrantes = [];
-
-  function placeInSobrantes(pieza){
-    let bestIdx=-1,bestRest=Infinity;
-    const need = pieza.len + merma;
-    for(let i=0;i<sobrantes.length;i++){
-      const s = sobrantes[i];
-      if(s >= need && (s - need) < bestRest){ bestRest = s - need; bestIdx = i; }
-    }
-    if(bestIdx>=0){ sobrantes[bestIdx]-=need; if(sobrantes[bestIdx]<20)sobrantes.splice(bestIdx,1); return true; }
-    return false;
-  }
-
-  function placeInBestBin(pieza){
-    let best=null,bestRest=Infinity;
-    const need=pieza.len+merma;
-    for(const b of bins){
-      if(b.restante>=need){
-        const r=b.restante-need;
-        if(r<bestRest){bestRest=r;best=b;}
-      }
-    }
-    if(best){best.piezas.push({winId:pieza.winId,len:pieza.len});best.restante-=need;best.utilizada+=pieza.len;return true;}
-    return false;
-  }
-
-  for(const pieza of lista){
-    if(placeInSobrantes(pieza)) continue;
-    if(placeInBestBin(pieza)) continue;
-    const need=pieza.len+merma;
-    let chosen=null;
-    for(const L of largos.slice().sort((a,b)=>a-b)){if(L>=need){chosen=L;break;}}
-    if(!chosen) chosen=Math.max(need,largos[0]||6000);
-    bins.push({piezas:[{winId:pieza.winId,len:pieza.len}],largo:chosen,restante:chosen-need,utilizada:pieza.len});
-  }
-
-  for(const b of bins){if(b.restante>20)sobrantes.push(b.restante);}
-  bins.forEach((b,i)=>{b.id=i+1;b.utilizada??=b.piezas.reduce((a,p)=>a+p.len,0);});
-  return bins;
+/* SOLVER */
+function solveCutsMultiLargo(piezas,largosDisponibles,merma=MERMA){
+ if(!piezas||piezas.length===0)return[];
+ const largos=[...new Set((largosDisponibles||[]).map(v=>parseInt(v)).filter(n=>!isNaN(n)&&n>0))].sort((a,b)=>b-a);
+ if(largos.length===0)largos.push(6000);
+ const lista=piezas.slice().map(p=>({winId:p.winId,len:Number(p.len)})).filter(p=>p.len>0).sort((a,b)=>b.len-a.len);
+ const bins=[],sobrantes=[];
+ function placeInSobrantes(pieza){
+ let bestIdx=-1,bestRest=Infinity;const need=pieza.len+merma;
+ for(let i=0;i<sobrantes.length;i++){const s=sobrantes[i];if(s>=need&&(s-need)<bestRest){bestRest=s-need;bestIdx=i;}}
+ if(bestIdx>=0){sobrantes[bestIdx]-=need;if(sobrantes[bestIdx]<20)sobrantes.splice(bestIdx,1);return true;}return false;}
+ function placeInBestBin(pieza){
+ let best=null,bestRest=Infinity;const need=pieza.len+merma;
+ for(const b of bins){if(b.restante>=need){const r=b.restante-need;if(r<bestRest){bestRest=r;best=b;}}}
+ if(best){best.piezas.push({winId:pieza.winId,len:pieza.len});best.restante-=need;best.utilizada+=pieza.len;return true;}return false;}
+ for(const pieza of lista){if(placeInSobrantes(pieza))continue;if(placeInBestBin(pieza))continue;
+ const need=pieza.len+merma;let chosen=null;for(const L of largos.slice().sort((a,b)=>a-b)){if(L>=need){chosen=L;break;}}
+ if(!chosen)chosen=Math.max(need,largos[0]||6000);
+ bins.push({piezas:[{winId:pieza.winId,len:pieza.len}],largo:chosen,restante:chosen-need,utilizada:pieza.len});}
+ for(const b of bins){if(b.restante>20)sobrantes.push(b.restante);}
+ bins.forEach((b,i)=>{b.id=i+1;b.utilizada??=b.piezas.reduce((a,p)=>a+p.len,0);});
+ return bins;
 }
 
 /* CALCULAR */
 function calcular(){
-  const filas = [...document.querySelectorAll('#tableWindows tbody tr')];
-  if(filas.length === 0){ alert('Agrega al menos una ventana'); return; }
+ const filas=[...document.querySelectorAll('#tableWindows tbody tr')];
+ if(filas.length===0){alert('Agrega al menos una ventana');return;}
+ const rawLargos=(document.getElementById('globalLargo').value||'6000').split(',').map(s=>s.trim()).filter(s=>s.length>0);
+ const largosDisponiblesGlobal=[...new Set(rawLargos.map(v=>parseInt(v)).filter(n=>!isNaN(n)&&n>0))].sort((a,b)=>b-a);
+ if(largosDisponiblesGlobal.length===0)largosDisponiblesGlobal.push(6000);
+ const resumenPorPerfil={},tirasPorPerfil={},resumenHerrajes={},resumenVentanas={},piezasPorPerfil={};
+ let totalUsado=0,totalDisponible=0;const resumenPorLargo={};
+ for(const tr of filas){
+ const tds=tr.querySelectorAll('td');
+ const winId=tds[0].querySelector('input').value.trim()||'-';
+ const ancho=Math.max(0,Math.round(parseFloat(tds[1].querySelector('input').value)||0));
+ const alto=Math.max(0,Math.round(parseFloat(tds[2].querySelector('input').value)||0));
+ const qty=Math.max(1,parseInt(tds[3].querySelector('input').value)||1);
+ const sistema=tds[4].querySelector('select').value;
+ const rawRow=(tds[5].querySelector('input').value||'').split(',').map(s=>s.trim()).filter(s=>s.length>0);
+ const rowLargos=[...new Set(rawRow.map(v=>parseInt(v)).filter(n=>!isNaN(n)&&n>0))];
+ if(ancho<=0||alto<=0){alert(`Medidas inválidas en ventana ${winId}`);return;}
+ if(!resumenVentanas[winId])resumenVentanas[winId]={ancho,alto,qty:0};
+ resumenVentanas[winId].qty+=qty;
+ const sys=SYSTEMS[sistema];if(!sys)continue;
+ for(const [perfil,def] of Object.entries(sys)){
+ if(def.tipo==="herraje"){const cantidadTotal=(def.cantidad||1)*qty;resumenHerrajes[perfil]=(resumenHerrajes[perfil]||0)+cantidadTotal;continue;}
+ const cortesBase=[];for(let i=0;i<(def.altos||0);i++)cortesBase.push(alto);
+ const anchoCorte=def.dividirAncho?Math.round(ancho/2):ancho;
+ for(let j=0;j<(def.anchos||0);j++)cortesBase.push(anchoCorte);
+ if(cortesBase.length===0)continue;
+ const cortesTotales=[];for(let k=0;k<qty;k++)cortesTotales.push(...cortesBase);
+ piezasPorPerfil[perfil]=piezasPorPerfil[perfil]||{piezas:[],largosSet:new Set()};
+ if(rowLargos.length)rowLargos.forEach(L=>piezasPorPerfil[perfil].largosSet.add(L));
+ else largosDisponiblesGlobal.forEach(L=>piezasPorPerfil[perfil].largosSet.add(L));
+ cortesTotales.forEach(len=>piezasPorPerfil[perfil].piezas.push({winId,len}));
+ }}
+ for(const [perfil,info] of Object.entries(piezasPorPerfil)){
+ const piezas=info.piezas||[];if(piezas.length===0)continue;
+ let largosParaPerfil=[...info.largosSet].filter(n=>!isNaN(n)&&n>0);
+ if(largosParaPerfil.length===0)largosParaPerfil=largosDisponiblesGlobal.slice();
+ largosParaPerfil=[...new Set(largosParaPerfil)].sort((a,b)=>b-a);
+ const bins=solveCutsMultiLargo(piezas,largosParaPerfil,MERMA);
+ resumenPorPerfil[perfil]=(resumenPorPerfil[perfil]||0)+bins.length;
+ tirasPorPerfil[perfil]=tirasPorPerfil[perfil]||{tiras:[],largosUsados:[]};
+ bins.forEach(b=>{const piezasCopy=(b.piezas||[]).map(p=>({winId:p.winId,len:p.len}));
+ const restante=Math.max(0,Math.round(b.restante||0));
+ const largoUsed=b.largo||largosParaPerfil[0]||6000;
+ const utilizada=b.utilizada||piezasCopy.reduce((a,p)=>a+p.len,0);
+ tirasPorPerfil[perfil].tiras.push({piezas:piezasCopy,restante,largo:largoUsed,utilizada});
+ tirasPorPerfil[perfil].largosUsados.push(largoUsed);
+ resumenPorLargo[largoUsed]=(resumenPorLargo[largoUsed]||0)+1;
+ totalUsado+=utilizada;
+ totalDisponible+=Math.max(largoUsed-MERMA,0);});}
+ const aprovechamiento=totalDisponible>0?(totalUsado/
+  const aprovechamiento = totalDisponible > 0 ? (totalUsado / totalDisponible) * 100 : 0;
 
-  const rawLargos = (document.getElementById('globalLargo').value || '6000').split(',').map(s=>s.trim()).filter(s=>s.length>0);
-  const largosDisponiblesGlobal = Array.from(new Set(rawLargos.map(v=>parseInt(v)).filter(n=>!isNaN(n)&&n>0))).sort((a,b)=>b-a);
-  if(largosDisponiblesGlobal.length===0) largosDisponiblesGlobal.push(6000);
+  // Guardar resultados en memoria
+  lastResults = {
+    proyecto: document.getElementById('projectName').value || '',
+    usuario: currentUser,
+    resumenPorPerfil,
+    tirasPorPerfil,
+    resumenHerrajes,
+    resumenVentanas,
+    resumenPorLargo,
+    aprovechamiento,
+    totalUsado,
+    totalDisponible
+  };
 
-  const resumenPorPerfil = {}, tirasPorPerfil = {}, resumenHerrajes = {}, resumenVentanas = {}, piezasPorPerfil = {};
-  let totalUsado = 0, totalDisponible = 0; const resumenPorLargo = {};
+  // Persistencia básica
+  localStorage.setItem(
+    'cortesApp',
+    JSON.stringify({
+      proyecto: lastResults.proyecto,
+      largos: document.getElementById('globalLargo').value || '6000'
+    })
+  );
 
-  for(const tr of filas){
-    const tds = tr.querySelectorAll('td');
-    const winId = tds[0].querySelector('input').value.trim() || '-';
-    const ancho = Math.max(0, Math.round(parseFloat(tds[1].querySelector('input').value) || 0));
-    const alto = Math.max(0, Math.round(parseFloat(tds[2].querySelector('input').value) || 0));
-    const qty = Math.max(1, parseInt(tds[3].querySelector('input').value) || 1);
-    const sistema = tds[4].querySelector('select').value;
-    const rawRow = (tds[5].querySelector('input').value || '').split(',').map(s=>s.trim()).filter(s=>s.length>0);
-    const rowLargos = Array.from(new Set(rawRow.map(v=>parseInt(v)).filter(n=>!isNaN(n)&&n>0)));
-
-    if(ancho<=0 || alto<=0){ alert(`Medidas inválidas en ventana ${winId}`); return; }
-
-    if(!resumenVentanas[winId]) resumenVentanas[winId] = { ancho, alto, qty: 0 };
-    resumenVentanas[winId].qty += qty;
-
-    const sys = SYSTEMS[sistema]; if(!sys) continue;
-
-    for(const [perfil, def] of Object.entries(sys)){
-      if(def.tipo === "herraje"){
-        const cantidadTotal = (def.cantidad || 1) * qty;
-        resumenHerrajes[perfil] = (resumenHerrajes[perfil] || 0) + cantidadTotal;
-        continue;
-      }
-      const cortesBase=[];
-      for(let i=0;i<(def.altos||0);i++) cortesBase.push(alto);
-      const anchoCorte = def.dividirAncho ? Math.round(ancho/2) : ancho;
-      for(let j=0;j<(def.anchos||0);j++) cortesBase.push(anchoCorte);
-      if(cortesBase.length===0) continue;
-      const cortesTotales=[]; for(let k=0;k<qty;k++) cortesTotales.push(...cortesBase);
-      piezasPorPerfil[perfil]=piezasPorPerfil[perfil]||{piezas:[],largosSet:new Set()};
-      if(rowLargos.length) rowLargos.forEach(L=>piezasPorPerfil[perfil].largosSet.add(L));
-      else largosDisponiblesGlobal.forEach(L=>piezasPorPerfil[perfil].largosSet.add(L));
-      cortesTotales.forEach(len=>piezasPorPerfil[perfil].piezas.push({winId,len}));
-    }
-  }
-
-  for(const [perfil, info] of Object.entries(piezasPorPerfil)){
-    const piezas = info.piezas || [];
-    if(piezas.length===0) continue;
-    let largosParaPerfil = Array.from(info.largosSet).filter(n=>!isNaN(n)&&n>0);
-    if(largosParaPerfil.length===0) largosParaPerfil = largosDisponiblesGlobal.slice();
-    largosParaPerfil = Array.from(new Set(largosParaPerfil)).sort((a,b)=>b-a);
-    const bins = solveCutsMultiLargo(piezas, largosParaPerfil, MERMA);
-    resumenPorPerfil[perfil] = (resumenPorPerfil[perfil] || 0) + bins.length;
-    tirasPorPerfil[perfil] = tirasPorPerfil[perfil] || { tiras: [], largosUsados: [] };
-    bins.forEach(b=>{
-      const piezasCopy = (b.piezas||[]).map(p=>({winId:p.winId,len:p.len}));
-      const restante = Math.max(0, Math.round(b.restante||0));
-      const largoUsed = b.largo || largosParaPerfil[0] || 6000;
-      const utilizada = b.utilizada || piezasCopy.reduce((a,p)=>a+p.len,0);
-      tirasPorPerfil[perfil].tiras.push({ piezas:piezasCopy, restante, largo:largoUsed, utilizada });
-      tirasPorPerfil[perfil].largosUsados.push(largoUsed);
-      resumenPorLargo[largoUsed] = (resumenPorLargo[largoUsed] || 0) + 1;
-      totalUsado += utilizada;
-      totalDisponible += Math.max(largoUsed - MERMA, 0);
+  // Resumen visual en UI
+  let html = `<b>Resumen — Tiras totales por perfil</b><br>`;
+  if (Object.keys(resumenPorPerfil).length === 0) {
+    html += '<span class="muted">No hay perfiles</span>';
+  } else {
+    Object.entries(resumenPorPerfil).forEach(([perfil, cant]) => {
+      html += `${perfil}: ${cant} tiras<br>`;
     });
   }
 
-  const aprovechamiento = totalDisponible>0 ? (totalUsado/totalDisponible)*100 : 0;
-  lastResults = { proyecto: document.getElementById('projectName').value||'', usuario: currentUser, resumenPorPerfil, tirasPorPerfil, resumenHerrajes, resumenVentanas, resumenPorLargo, aprovechamiento, totalUsado, totalDisponible };
-
-  localStorage.setItem('cortesApp', JSON.stringify({ proyecto:lastResults.proyecto, largos:document.getElementById('globalLargo').value||'6000' }));
-
-  let html = `<b>Resumen — Tiras totales por perfil</b><br>`;
-  if(Object.keys(resumenPorPerfil).length===0) html += '<span class="muted">No hay perfiles</span>';
-  else Object.entries(resumenPorPerfil).forEach(([perfil,cant])=>{ html += `${perfil}: ${cant} tiras<br>`; });
-
   html += `<br><b>Resumen por largo de tira:</b><br>`;
-  if(Object.keys(resumenPorLargo).length===0) html += '<span class="muted">No hay tiras</span>';
-  else Object.keys(resumenPorLargo).map(k=>parseInt(k)).sort((a,b)=>b-a).forEach(l=>{ html += `${resumenPorLargo[l]} tiras de ${l} mm<br>`; });
+  if (Object.keys(resumenPorLargo).length === 0) {
+    html += '<span class="muted">No hay tiras</span>';
+  } else {
+    Object.keys(resumenPorLargo)
+      .map(k => parseInt(k))
+      .sort((a, b) => b - a)
+      .forEach(l => {
+        html += `${resumenPorLargo[l]} tiras de ${l} mm<br>`;
+      });
+  }
 
-  const totalTiras = Object.values(resumenPorLargo).reduce((a,b)=>a+b,0);
-  const totalSobrante = Math.max(0, Math.round((totalDisponible-totalUsado)));
-  html += `<br><b>Total de tiras:</b> ${totalTiras}<br><b>Total sobrante:</b> ${totalSobrante} mm<br><b>Aprovechamiento:</b> ${aprovechamiento.toFixed(2)}%`;
+  const totalTiras = Object.values(resumenPorLargo).reduce((a, b) => a + b, 0);
+  const totalSobrante = Math.max(0, Math.round(totalDisponible - totalUsado));
+  html += `<br><b>Total de tiras:</b> ${totalTiras}<br>`;
+  html += `<b>Total sobrante:</b> ${totalSobrante} mm<br>`;
+  html += `<b>Aprovechamiento:</b> ${aprovechamiento.toFixed(2)}%`;
+
   document.getElementById('summary').innerHTML = html;
 }
 
-/* EXPORTAR PDF (mejorado: landscape, jerarquía, compacidad, escala, pie de página) */
-function exportPdf(){
-  if(!lastResults || !lastResults.tirasPorPerfil){ alert('Primero presiona Calcular resumen.'); return; }
-  try{
+/* =========================================================
+   EXPORTAR PDF (mejorado: landscape, títulos negro oscuro,
+   ID arriba, medidas dentro, líneas divisorias, escala, pie)
+   ========================================================= */
+function exportPdf() {
+  if (!lastResults || !lastResults.tirasPorPerfil) {
+    alert('Primero presiona Calcular resumen.');
+    return;
+  }
+
+  try {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
-    const pageW=doc.internal.pageSize.getWidth(), pageH=doc.internal.pageSize.getHeight(), margin=36;
-    let y=margin;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
 
-    // Título
-    doc.setFontSize(16); doc.setTextColor(20,120,90);
-    doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW/2, y,{align:'center'}); 
-    y+=22;
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 36;
+    let y = margin;
 
-    // Encabezado compacto y línea divisoria
-    doc.setFontSize(10); doc.setTextColor(0,0,0);
-    doc.text(`Proyecto: ${lastResults.proyecto||'-'}`, margin, y);
-    doc.text(`Usuario: ${lastResults.usuario||'-'}`, margin+240, y);
+    // ---------- Título ----------
+    doc.setFontSize(16);
+    doc.setTextColor(30); // negro oscuro
+    doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW / 2, y, { align: 'center' });
+    y += 22;
+
+    // ---------- Encabezado compacto + línea divisoria ----------
+    doc.setFontSize(10);
+    doc.setTextColor(40); // negro/gris oscuro
+    doc.text(`Proyecto: ${lastResults.proyecto || '-'}`, margin, y);
+    doc.text(`Usuario: ${lastResults.usuario || '-'}`, margin + 240, y);
     doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 200, y);
     y += 16;
     doc.setDrawColor(200);
     doc.line(margin, y, pageW - margin, y);
     y += 10;
 
-    // Sección: Herrajes
-    doc.setFontSize(11); doc.setTextColor(30,120,90);
-    doc.text('RESUMEN DE HERRAJES Y ACCESORIOS', margin, y); y += 10;
-    doc.setFontSize(9); doc.setTextColor(0,0,0);
+    // ---------- Resumen de Herrajes ----------
+    doc.setFontSize(11);
+    doc.setTextColor(40);
+    doc.text('RESUMEN DE HERRAJES Y ACCESORIOS', margin, y);
+    y += 10;
+
+    doc.setFontSize(9);
+    doc.setTextColor(0);
     const herrajesEntries = Object.entries(lastResults.resumenHerrajes || {});
-    if(herrajesEntries.length === 0){ doc.text('No se registraron herrajes.', margin, y); y += 10; }
-    else { herrajesEntries.forEach(([k,v])=>{ doc.text(`${k}: ${Number(v).toFixed(2)}`, margin, y); y += 8; }); }
-    y += 6;
-
-    // Sección: Ventanas
-    doc.setFontSize(11); doc.setTextColor(30,120,90);
-    doc.text('RESUMEN DE VENTANAS (ID = Ancho x Alto, Cantidad)', margin, y); y += 10;
-    doc.setFontSize(9); doc.setTextColor(0,0,0);
-    const vent = Object.entries(lastResults.resumenVentanas||{});
-    if(vent.length===0){ doc.text('No hay ventanas registradas.', margin, y); y += 10; }
-    else { vent.forEach(([id,o])=>{ doc.text(`${id} = Ancho: ${o.ancho} mm, Alto: ${o.alto} mm, Cantidad: ${o.qty}`, margin, y); y += 8; }); }
-    y += 8;
-
-    // Resumen por largo
-    doc.setFontSize(11); doc.setTextColor(30,120,90);
-    doc.text('RESUMEN DE TIRAS POR LARGO', margin, y); y += 10;
-    doc.setFontSize(9); doc.setTextColor(0,0,0);
-    const rpl = lastResults.resumenPorLargo || {};
-    if(Object.keys(rpl).length===0){ doc.text('No se registraron tiras.', margin, y); y += 10; }
-    else {
-      Object.keys(rpl).map(k=>parseInt(k)).sort((a,b)=>b-a).forEach(l=>{ doc.text(`${rpl[l]} tiras de ${l} mm`, margin, y); y += 8; });
+    if (herrajesEntries.length === 0) {
+      doc.text('No se registraron herrajes.', margin, y);
+      y += 10;
+    } else {
+      herrajesEntries.forEach(([codigo, valor]) => {
+        doc.text(`${codigo}: ${Number(valor).toFixed(2)}`, margin, y);
+        y += 8;
+      });
     }
     y += 6;
 
-    // Aprovechamiento total
-    doc.setFontSize(11); doc.setTextColor(0,100,0);
-    doc.text(`Aprovechamiento total del material: ${(lastResults.aprovechamiento||0).toFixed(2)}%`, margin, y);
+    // ---------- Resumen de Ventanas ----------
+    doc.setFontSize(11);
+    doc.setTextColor(40);
+    doc.text('RESUMEN DE VENTANAS (ID = Ancho x Alto, Cantidad)', margin, y);
+    y += 10;
+
+    doc.setFontSize(9);
+    doc.setTextColor(0);
+    const ventanasEntries = Object.entries(lastResults.resumenVentanas || {});
+    if (ventanasEntries.length === 0) {
+      doc.text('No hay ventanas registradas.', margin, y);
+      y += 10;
+    } else {
+      ventanasEntries.forEach(([id, o]) => {
+        doc.text(`${id} = Ancho: ${o.ancho} mm, Alto: ${o.alto} mm, Cantidad: ${o.qty}`, margin, y);
+        y += 8;
+      });
+    }
+    y += 8;
+
+    // ---------- Resumen por largo ----------
+    doc.setFontSize(11);
+    doc.setTextColor(40);
+    doc.text('RESUMEN DE TIRAS POR LARGO', margin, y);
+    y += 10;
+
+    doc.setFontSize(9);
+    doc.setTextColor(0);
+    const resumenPorLargo = lastResults.resumenPorLargo || {};
+    if (Object.keys(resumenPorLargo).length === 0) {
+      doc.text('No se registraron tiras.', margin, y);
+      y += 10;
+    } else {
+      Object.keys(resumenPorLargo)
+        .map(k => parseInt(k))
+        .sort((a, b) => b - a)
+        .forEach(l => {
+          doc.text(`${resumenPorLargo[l]} tiras de ${l} mm`, margin, y);
+          y += 8;
+        });
+    }
+    y += 6;
+
+    // ---------- Aprovechamiento total ----------
+    doc.setFontSize(11);
+    doc.setTextColor(0);
+    doc.text(`Aprovechamiento total del material: ${(lastResults.aprovechamiento || 0).toFixed(2)}%`, margin, y);
     y += 16;
 
-    // Parámetros visuales de diagramas
-    const barMaxWidth=Math.min(pageW - margin*2 - 220, 1000);
-    const barH=20, gap=28, containerX=margin+160, containerW=barMaxWidth;
+    // ---------- Parámetros visuales de los diagramas ----------
+    const barMaxWidth = Math.min(pageW - margin * 2 - 220, 1000);
+    const barH = 22;   // altura de barra
+    const gap = 32;    // espacio vertical por barra
+    const containerX = margin + 160;
+    const containerW = barMaxWidth;
 
-    const profiles=lastResults.tirasPorPerfil||{};
-    for(const [perfil,obj] of Object.entries(profiles)){
+    const profiles = lastResults.tirasPorPerfil || {};
+
+    // ---------- Por cada perfil ----------
+    for (const [perfil, obj] of Object.entries(profiles)) {
       const allTiras = obj && Array.isArray(obj.tiras) ? obj.tiras : [];
-      if(allTiras.length===0) continue;
+      if (allTiras.length === 0) continue;
 
       // Título de perfil
-      if(y > pageH - 160){ doc.addPage(); y = margin; }
-      doc.setFontSize(12); doc.setTextColor(0,0,0);
-      doc.text(`${perfil} — Diagramas de corte`, margin, y); y += 12;
+      if (y > pageH - 160) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      doc.text(`${perfil} — Diagramas de corte`, margin, y);
+      y += 12;
 
-      // Dedupe por piezas
+      // De-duplicar tiras por (piezas + largo)
       const seen = new Set();
       const tiras = [];
-      for(const t of allTiras){
-        const clave = JSON.stringify(t.piezas.map(p => `${p.winId}-${p.len}`)) + '|' + (t.largo||0);
-        if(!seen.has(clave)){ seen.add(clave); tiras.push(t); }
+      for (const t of allTiras) {
+        const clave = JSON.stringify(t.piezas.map(p => `${p.winId}-${p.len}`)) + '|' + (t.largo || 0);
+        if (!seen.has(clave)) {
+          seen.add(clave);
+          tiras.push(t);
+        }
       }
 
-      for(let i=0;i<tiras.length;i++){
-        const t=tiras[i] || {};
-        const capacidad = Number(t.largo)||6000;
-        const scale = barMaxWidth/capacidad;
+      // ---------- Dibujar cada tira ----------
+      for (let i = 0; i < tiras.length; i++) {
+        const t = tiras[i] || {};
+        const capacidad = Number(t.largo) || 6000;
+
+        // Escala proporcional (sin exagerar cortes pequeños, min 20px por segmento)
+        const scale = containerW / capacidad;
 
         // Salto de página si no hay espacio
-        if(y + barH + gap > pageH - 80){ doc.addPage(); y = margin; }
+        if (y + barH + gap > pageH - 80) {
+          doc.addPage();
+          y = margin;
+        }
 
         // Etiqueta de tira
-        doc.setFontSize(9); doc.setTextColor(0,0,0);
-        doc.text(`Tira ${i+1} (${capacidad} mm)`, margin+120, y+barH/2+3, {align:'right'});
+        doc.setFontSize(9);
+        doc.setTextColor(0);
+        doc.text(`Tira ${i + 1} (${capacidad} mm)`, margin + 120, y + barH / 2 + 3, { align: 'right' });
 
-        // Marco
-        doc.setDrawColor(120); doc.rect(containerX, y, containerW, barH);
+        // Marco de la barra
+        doc.setDrawColor(120);
+        doc.rect(containerX, y, containerW, barH);
 
-        // Piezas
-        let x=containerX;
-        for(const p of t.piezas){
-          const len = Number(p.len)||0;
-          const seg = Math.max(2, Math.round(len*scale));
-          if(x >= containerX + containerW - 1) break;
+        // ----- Piezas dentro de la barra -----
+        let x = containerX;
+
+        for (let idx = 0; idx < (t.piezas || []).length; idx++) {
+          const p = t.piezas[idx];
+          const len = Number(p.len) || 0;
+
+          // Segmento mínimo visible: 20 px
+          const segRaw = Math.round(len * scale);
+          const segMin = 20;
+          const seg = Math.max(segMin, segRaw);
+
+          // No exceder contenedor
+          if (x >= containerX + containerW - 1) break;
           const maxAllowed = containerX + containerW - x;
           const segFinal = Math.max(0, Math.min(seg, maxAllowed));
-          if(segFinal <= 0) break;
+          if (segFinal <= 0) break;
 
-          const color = colorForId(p.winId||'');
-          doc.setFillColor(color[0],color[1],color[2]);
+          // Color por ventana
+          const color = colorForId(p.winId || '');
+          doc.setFillColor(color[0], color[1], color[2]);
           doc.rect(x, y, segFinal, barH, 'F');
 
-          if(segFinal > 80){
-            doc.setTextColor(255,255,255); doc.setFontSize(8);
-            doc.text(`${p.winId || '-'} (${len} mm)`, x + segFinal/2, y + barH/2 + 4, {align:'center'});
+          // ------- Etiqueta superior: ID de ventana -------
+          // Se dibuja encima de la barra (2 líneas por si acaso)
+          const idY = y - 3; // un pelín arriba de la barra
+          doc.setTextColor(0);
+          doc.setFontSize(8);
+          const idTexto = String(p.winId || '-');
+          doc.text(idTexto, x + segFinal / 2, idY, { align: 'center' });
+
+          // ------- Etiqueta de medida -------
+          // Si el segmento es ancho >= 60 px, la medida va adentro (blanco para contrastar).
+          // Si es estrecho (<60 px), ponemos la medida arriba (debajo del ID) para que se lea.
+          const medidaTxt = `${len} mm`;
+          if (segFinal >= 60) {
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(8);
+            doc.text(medidaTxt, x + segFinal / 2, y + barH / 2 + 4, { align: 'center' });
+          } else {
+            // Medida por arriba, debajo del ID (pequeño offset)
+            doc.setTextColor(0);
+            doc.setFontSize(7);
+            doc.text(medidaTxt, x + segFinal / 2, idY - 9, { align: 'center' });
           }
+
+          // ------- Línea divisoria negra entre cortes -------
+          doc.setDrawColor(0);
+          doc.setLineWidth(0.5);
+          doc.line(x + segFinal, y, x + segFinal, y + barH);
+
           x += segFinal;
         }
 
-        // Sobrante
-        const restante = Math.max(0, Math.round(Number(t.restante)||0));
-        if(restante > 0 && x < containerX + containerW - 2){
+        // ------- Sobrante (bloque gris + texto) -------
+        const restante = Math.max(0, Math.round(Number(t.restante) || 0));
+        if (restante > 0 && x < containerX + containerW - 2) {
           const sobraW = Math.round(restante * scale);
           const maxAllowed = containerX + containerW - x;
           const w = Math.min(sobraW, Math.max(0, Math.round(maxAllowed)));
-          if(w > 0){
-            doc.setFillColor(200,200,200);
+          if (w > 0) {
+            doc.setFillColor(200, 200, 200);
             doc.rect(x, y, w, barH, 'F');
-            doc.setTextColor(0,0,0); doc.setFontSize(8);
-            if(w > 60){
-              doc.text(`Sobrante ${restante} mm`, x + w/2, y + barH/2 + 3, {align:'center'});
+
+            doc.setTextColor(0);
+            doc.setFontSize(8);
+            if (w > 60) {
+              doc.text(`Sobrante ${restante} mm`, x + w / 2, y + barH / 2 + 3, { align: 'center' });
             } else {
-              doc.text(`${restante} mm`, x + w + 5, y + barH/2 + 3);
+              doc.text(`${restante} mm`, x + Math.min(w - 4, 20), y + barH / 2 + 3);
             }
+
+            // línea divisoria al final del sobrante
+            doc.setDrawColor(0);
+            doc.setLineWidth(0.5);
+            doc.line(x + w, y, x + w, y + barH);
           }
         }
 
-        // Línea de escala
+        // ------- Escala bajo la barra -------
         doc.setDrawColor(180);
         doc.line(containerX, y + barH + 6, containerX + containerW, y + barH + 6);
-        doc.setFontSize(7); doc.setTextColor(0,0,0);
+        doc.setFontSize(7);
+        doc.setTextColor(0);
         doc.text('0', containerX, y + barH + 16);
-        doc.text(`${capacidad} mm`, containerX + containerW, y + barH + 16, {align:'right'});
+        doc.text(`${capacidad} mm`, containerX + containerW, y + barH + 16, { align: 'right' });
 
-        // “Tira utilizada” centrada bajo la barra
+        // Leyenda centrada: "Tira utilizada"
         doc.setFontSize(8);
-        doc.text(`Tira utilizada: ${Number(t.utilizada||0)} mm`, containerX + containerW/2, y + barH + 28, {align:'center'});
+        doc.setTextColor(0);
+        doc.text(`Tira utilizada: ${Number(t.utilizada || 0)} mm`, containerX + containerW / 2, y + barH + 28, { align: 'center' });
 
         y += gap;
       }
@@ -474,28 +565,31 @@ function exportPdf(){
       y += 6; // pequeño espacio entre perfiles
     }
 
-    // Pie de página con numeración
+    // ---------- Pie de página (número de página) ----------
     const pageCount = doc.internal.getNumberOfPages();
-    for(let i=1;i<=pageCount;i++){
+    for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setTextColor(120);
-      doc.text(`Página ${i} de ${pageCount} — Generado por Optimizador Técnico de Cortes`, pageW/2, pageH - 18, {align:'center'});
+      doc.text(`Página ${i} de ${pageCount} — Generado por Optimizador Técnico de Cortes`, pageW / 2, pageH - 18, { align: 'center' });
     }
 
-    doc.save(`Cortes_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'_')}.pdf`);
-  }catch(err){console.error(err);alert('Error al generar PDF');}
+    // Guardar PDF
+    doc.save(`Cortes_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.pdf`);
+  } catch (err) {
+    console.error('Error en exportPdf:', err);
+    alert('Ocurrió un error al generar el PDF. Revisa la consola para más detalles.');
+  }
 }
 
-/* BORRAR */
-function borrarTodo(){
-  if(!confirm('¿Borrar todo?')) return;
-  document.querySelector('#tableWindows tbody').innerHTML='';
-  lastResults=null;
-  document.getElementById('summary').innerText='Presiona "Calcular resumen" para ver totales por perfil.';
+/* ----------------- UTIL: BORRAR TODO ----------------- */
+function borrarTodo() {
+  if (!confirm('¿Borrar todo?')) return;
+  document.querySelector('#tableWindows tbody').innerHTML = '';
+  lastResults = null;
+  document.getElementById('summary').innerText = 'Presiona "Calcular resumen" para ver totales por perfil.';
   localStorage.removeItem('cortesApp');
 }
 </script>
 </body>
 </html>
-
