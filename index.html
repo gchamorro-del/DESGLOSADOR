@@ -247,8 +247,7 @@ function calcular(){
  resumenPorLargo[largoUsed]=(resumenPorLargo[largoUsed]||0)+1;
  totalUsado+=utilizada;
  totalDisponible+=Math.max(largoUsed-MERMA,0);});}
- const aprovechamiento=totalDisponible>0?(totalUsado/
-  const aprovechamiento = totalDisponible > 0 ? (totalUsado / totalDisponible) * 100 : 0;
+   const aprovechamiento = totalDisponible > 0 ? (totalUsado / totalDisponible) * 100 : 0;
 
   // Guardar resultados en memoria
   lastResults = {
