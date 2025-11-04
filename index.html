@@ -304,8 +304,7 @@ function calcular(){
 }
 
 /* =========================================================
-   EXPORTAR PDF (mejorado: landscape, títulos negro oscuro,
-   ID arriba, medidas dentro, líneas divisorias, escala, pie)
+   EXPORTAR PDF — Versión avanzada (agrupada y limpia)
    ========================================================= */
 function exportPdf() {
   if (!lastResults || !lastResults.tirasPorPerfil) {
@@ -328,9 +327,9 @@ function exportPdf() {
     doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW / 2, y, { align: 'center' });
     y += 22;
 
-    // ---------- Encabezado compacto + línea divisoria ----------
+    // ---------- Encabezado compacto ----------
     doc.setFontSize(10);
-    doc.setTextColor(40); // negro/gris oscuro
+    doc.setTextColor(40);
     doc.text(`Proyecto: ${lastResults.proyecto || '-'}`, margin, y);
     doc.text(`Usuario: ${lastResults.usuario || '-'}`, margin + 240, y);
     doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 200, y);
@@ -339,7 +338,7 @@ function exportPdf() {
     doc.line(margin, y, pageW - margin, y);
     y += 10;
 
-    // ---------- Resumen de Herrajes ----------
+    // ---------- RESUMEN DE HERRAJES ----------
     doc.setFontSize(11);
     doc.setTextColor(40);
     doc.text('RESUMEN DE HERRAJES Y ACCESORIOS', margin, y);
@@ -359,7 +358,7 @@ function exportPdf() {
     }
     y += 6;
 
-    // ---------- Resumen de Ventanas ----------
+    // ---------- RESUMEN DE VENTANAS ----------
     doc.setFontSize(11);
     doc.setTextColor(40);
     doc.text('RESUMEN DE VENTANAS (ID = Ancho x Alto, Cantidad)', margin, y);
@@ -379,46 +378,33 @@ function exportPdf() {
     }
     y += 8;
 
-// ---------- Resumen de tiras por largo y perfil ----------
-doc.setFontSize(11);
-doc.setTextColor(40);
-doc.text('RESUMEN DE TIRAS POR LARGO', margin, y);
-y += 10;
+    // ---------- RESUMEN DE TIRAS POR LARGO ----------
+    doc.setFontSize(11);
+    doc.setTextColor(40);
+    doc.text('RESUMEN DE TIRAS POR LARGO', margin, y);
+    y += 10;
 
-doc.setFontSize(9);
-doc.setTextColor(0);
-
-const perfiles = lastResults.tirasPorPerfil || {};
-if (Object.keys(perfiles).length === 0) {
-  doc.text('No se registraron tiras.', margin, y);
-  y += 10;
-} else {
-  // Agrupar por largo y perfil
-  const resumenLargos = {};
-  for (const [perfil, obj] of Object.entries(perfiles)) {
-    const tiras = obj.tiras || [];
-    for (const t of tiras) {
-      const largo = t.largo || 0;
-      if (!resumenLargos[largo]) resumenLargos[largo] = {};
-      resumenLargos[largo][perfil] = (resumenLargos[largo][perfil] || 0) + 1;
+    doc.setFontSize(9);
+    doc.setTextColor(0);
+    const resumenPorLargo = lastResults.resumenPorLargo || {};
+    const resumenPorPerfil = lastResults.resumenPorPerfil || {};
+    if (Object.keys(resumenPorLargo).length === 0) {
+      doc.text('No se registraron tiras.', margin, y);
+      y += 10;
+    } else {
+      Object.keys(resumenPorLargo)
+        .map(k => parseInt(k))
+        .sort((a, b) => b - a)
+        .forEach(l => {
+          const total = resumenPorLargo[l];
+          const detalles = Object.entries(resumenPorPerfil)
+            .map(([perfil, cant]) => `${perfil}: ${cant}`)
+            .join(', ');
+          doc.text(`${total} tiras de ${l} mm (${detalles})`, margin, y);
+          y += 8;
+        });
     }
-  }
-
-  // Ordenar y mostrar
-  Object.keys(resumenLargos)
-    .map(k => parseInt(k))
-    .sort((a, b) => b - a)
-    .forEach(l => {
-      const perfilesData = resumenLargos[l];
-      const resumenTxt = Object.entries(perfilesData)
-        .map(([perfil, count]) => `${count} tiras — ${perfil}`)
-        .join('   ');
-      doc.text(`Tiras de ${l} mm: ${resumenTxt}`, margin, y);
-      y += 9;
-    });
-}
-
-y += 8;
+    y += 6;
 
     // ---------- Aprovechamiento total ----------
     doc.setFontSize(11);
@@ -426,16 +412,16 @@ y += 8;
     doc.text(`Aprovechamiento total del material: ${(lastResults.aprovechamiento || 0).toFixed(2)}%`, margin, y);
     y += 16;
 
-    // ---------- Parámetros visuales de los diagramas ----------
+    // ---------- Parámetros visuales ----------
     const barMaxWidth = Math.min(pageW - margin * 2 - 220, 1000);
-    const barH = 22;   // altura de barra
-    const gap = 45;    // espacio vertical por barra
+    const barH = 22;
+    const gap = 45;
     const containerX = margin + 160;
     const containerW = barMaxWidth;
 
     const profiles = lastResults.tirasPorPerfil || {};
 
-    // ---------- Por cada perfil ----------
+    // ---------- POR CADA PERFIL ----------
     for (const [perfil, obj] of Object.entries(profiles)) {
       const allTiras = obj && Array.isArray(obj.tiras) ? obj.tiras : [];
       if (allTiras.length === 0) continue;
@@ -450,85 +436,65 @@ y += 8;
       doc.text(`${perfil} — Diagramas de corte`, margin, y);
       y += 12;
 
-      // De-duplicar tiras por (piezas + largo)
-      const seen = new Set();
-      const tiras = [];
+      // Agrupar tiras idénticas
+      const tirasMap = new Map();
       for (const t of allTiras) {
         const clave = JSON.stringify(t.piezas.map(p => `${p.winId}-${p.len}`)) + '|' + (t.largo || 0);
-        if (!seen.has(clave)) {
-          seen.add(clave);
-          tiras.push(t);
-        }
+        if (!tirasMap.has(clave)) tirasMap.set(clave, { ...t, count: 1 });
+        else tirasMap.get(clave).count++;
       }
+      const tiras = Array.from(tirasMap.values());
 
-      // ---------- Dibujar cada tira ----------
+      // Dibujar cada tira
       for (let i = 0; i < tiras.length; i++) {
         const t = tiras[i] || {};
         const capacidad = Number(t.largo) || 6000;
 
-        // Escala proporcional (sin exagerar cortes pequeños, min 20px por segmento)
-        const scale = containerW / capacidad;
-
-        // Salto de página si no hay espacio
         if (y + barH + gap > pageH - 80) {
           doc.addPage();
           y = margin;
         }
 
-        // Etiqueta de tira
+        // Título de la tira
+        const countLabel = t.count > 1 ? `×${t.count}` : '';
         doc.setFontSize(9);
         doc.setTextColor(0);
-        doc.text(`Tira ${i + 1} (${capacidad} mm)`, margin + 120, y + barH / 2 + 3, { align: 'right' });
+        doc.text(`Tira ${i + 1} (${capacidad} mm) ${countLabel}`, margin + 120, y + barH / 2 + 3, { align: 'right' });
 
-        // Marco de la barra
+        // Marco general
         doc.setDrawColor(120);
         doc.rect(containerX, y, containerW, barH);
 
-        // ----- Piezas dentro de la barra -----
+        // Escala ajustada
+        const piezasLen = (t.piezas || []).map(p => p.len);
+        const totalLen = piezasLen.reduce((a, b) => a + b, 0);
+        const minWidth = 40;
+        const totalMin = minWidth * piezasLen.length;
+        const scaleFactor = totalLen > 0 ? (containerW - totalMin) / totalLen : 0;
+
+        // Dibujar cortes
         let x = containerX;
-
-        for (let idx = 0; idx < (t.piezas || []).length; idx++) {
+        for (let idx = 0; idx < piezasLen.length; idx++) {
           const p = t.piezas[idx];
-          const len = Number(p.len) || 0;
+          const len = p.len;
+          const segFinal = minWidth + len * scaleFactor;
 
-          // Segmento mínimo visible: 20 px
-          const segRaw = Math.round(len * scale);
-          const segMin = 20;
-          const seg = Math.max(segMin, segRaw);
-
-          // No exceder contenedor
-          if (x >= containerX + containerW - 1) break;
-          const maxAllowed = containerX + containerW - x;
-          const segFinal = Math.max(0, Math.min(seg, maxAllowed));
-          if (segFinal <= 0) break;
-
-          // Color por ventana
           const color = colorForId(p.winId || '');
           doc.setFillColor(color[0], color[1], color[2]);
           doc.rect(x, y, segFinal, barH, 'F');
 
-         // ------- Etiquetas optimizadas (mejora #6) -------
-         const medidaTxt = `${len} mm`;
-        const idTxt = String(p.winId || '-');
+          // ID arriba de la barra
+          const idTxt = String(p.winId || '-');
+          doc.setTextColor(60);
+          doc.setFontSize(8);
+          doc.text(idTxt, x + segFinal / 2, y - 5, { align: 'center' });
 
-      if (segFinal >= 60) {
-      // Segmentos amplios → mostrar separado (arriba ID, dentro medida)
-      doc.setTextColor(0);
-      doc.setFontSize(8);
-      doc.text(idTxt, x + segFinal / 2, y - 4, { align: 'center' });
+          // Medida dentro
+          doc.setTextColor(255);
+          doc.setFontSize(8);
+          doc.text(`${len} mm`, x + segFinal / 2, y + barH / 2 + 3, { align: 'center' });
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(8);
-  doc.text(medidaTxt, x + segFinal / 2, y + barH / 2 + 4, { align: 'center' });
-} else {
-  // Segmentos pequeños → mostrar compacto "V2 (250)"
-  doc.setTextColor(0);
-  doc.setFontSize(7);
-  doc.text(`${idTxt} (${len})`, x + segFinal / 2, y - 4, { align: 'center' });
-}
-
-
-          // ------- Línea divisoria negra entre cortes -------
+          // Línea divisoria
           doc.setDrawColor(0);
           doc.setLineWidth(0.5);
           doc.line(x + segFinal, y, x + segFinal, y + barH);
@@ -536,69 +502,39 @@ y += 8;
           x += segFinal;
         }
 
-// ------- Sobrante (bloque gris + texto) -------
-// Calcular el sobrante real (basado en los datos del modelo, no en el dibujo)
-const restanteReal = Math.max(0, Math.round((t.largo || 0) - (t.utilizada || 0) - MERMA));
+        // Sobrante
+        const restante = Math.max(0, Math.round(Number(t.restante) || 0));
+        if (restante > 0 && x < containerX + containerW - 2) {
+          const sobraW = Math.max(30, (restante / capacidad) * containerW * 0.5);
+          doc.setFillColor(200, 200, 200);
+          doc.rect(x, y, sobraW, barH, 'F');
+          doc.setTextColor(0);
+          doc.setFontSize(8);
+          doc.text(`Sobrante ${restante} mm`, x + sobraW / 2, y + barH / 2 + 3, { align: 'center' });
+        }
 
-// Solo dibujar si realmente hay sobrante físico
-if (restanteReal > 0 && x < containerX + containerW - 2) {
-  const sobraW = Math.round(restanteReal * scale);
-  const maxAllowed = containerX + containerW - x;
-  const w = Math.min(sobraW, Math.max(0, Math.round(maxAllowed)));
-
-  if (w > 0) {
-    // Dibujar bloque gris del sobrante real
-    doc.setFillColor(200, 200, 200);
-    doc.rect(x, y, w, barH, 'F');
-
-    // Mostrar etiqueta solo si el sobrante es significativo
-    if (restanteReal >= 100) {
-      doc.setTextColor(0);
-      doc.setFontSize(8);
-      const label = `Sobrante ${restanteReal} mm`;
-      if (w > 60) {
-        doc.text(label, x + w / 2, y + barH / 2 + 3, { align: 'center' });
-      } else {
-        doc.text(`${restanteReal} mm`, x + Math.min(w - 4, 20), y + barH / 2 + 3);
+        y += gap;
       }
+
+      y += 10;
     }
 
-    // Línea divisoria final
-    doc.setDrawColor(0);
-    doc.setLineWidth(0.5);
-    doc.line(x + w, y, x + w, y + barH);
+    // ---------- Pie de página ----------
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      doc.text(`Página ${i} de ${pageCount} — Generado por Optimizador Técnico de Cortes`, pageW / 2, pageH - 18, { align: 'center' });
+    }
+
+    // Guardar PDF
+    doc.save(`Cortes_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.pdf`);
+  } catch (err) {
+    console.error('Error en exportPdf:', err);
+    alert('Ocurrió un error al generar el PDF. Revisa la consola para más detalles.');
   }
 }
-        // ------- Escala bajo la barra -------
-    
-// Avanzar a la siguiente barra
-y += gap;
-} // <-- cierra el for (tiras)
-
-y += 6; // pequeño espacio entre perfiles
-} // <-- cierra el for (perfiles)
-
-// ---------- Pie de página (número de página) ----------
-const pageCount = doc.internal.getNumberOfPages();
-for (let i = 1; i <= pageCount; i++) {
-  doc.setPage(i);
-  doc.setFontSize(8);
-  doc.setTextColor(120);
-  doc.text(
-    `Página ${i} de ${pageCount} — Generado por Optimizador Técnico de Cortes`,
-    pageW / 2,
-    pageH - 18,
-    { align: 'center' }
-  );
-}
-
-// Guardar PDF
-doc.save(`Cortes_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.pdf`);
-} catch (err) {
-  console.error('Error en exportPdf:', err);
-  alert('Ocurrió un error al generar el PDF. Revisa la consola para más detalles.');
-}
-} // <-- cierra function exportPdf
 
 
 /* ----------------- UTIL: BORRAR TODO ----------------- */
