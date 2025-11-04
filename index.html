@@ -65,13 +65,9 @@
   <div id="appSection" style="display:none">
     <div class="panel">
       <div class="row" style="align-items:center;gap:12px">
-        <div class="col">
+        <div class="col" style="max-width:400px;">
           <label for="projectName">Proyecto / Cliente</label>
           <input id="projectName" type="text" placeholder="Ej. Proyecto Alfa - Edificio A">
-        </div>
-        <div style="width:260px">
-          <label for="globalLargo">Largo disponible de tira (mm)</label>
-          <input id="globalLargo" type="text" value="6000" placeholder="Ej: 6000,5000" >
         </div>
         <div style="width:260px">
           <label>&nbsp;</label>
@@ -143,14 +139,13 @@ document.getElementById('loginBtn').addEventListener('click',()=>{
 function addRow(){
  const tbody=document.querySelector('#tableWindows tbody');
  const tr=document.createElement('tr');
- const defaultLargo=document.getElementById('globalLargo').value||'6000';
  tr.innerHTML=`
  <td><input type="text" placeholder="V1"></td>
  <td><input type="number" placeholder="1000" min="0"></td>
  <td><input type="number" placeholder="1500" min="0"></td>
  <td><input type="number" value="1" min="1"></td>
  <td><select>${Object.keys(SYSTEMS).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></td>
- <td><input type="text" value="${defaultLargo}" placeholder="Opcional: 6000,5000"></td>
+ <td><input type="text" placeholder="Ej: 5000,6000"></td>
  <td><button class="btn ghost" onclick="this.closest('tr').remove()">X</button></td>`;
  tbody.appendChild(tr);
 }
@@ -196,324 +191,77 @@ function solveCutsMultiLargo(piezas,largosDisponibles,merma=MERMA){
  return bins;
 }
 
-/* ================== CALCULAR (con resúmenes completos) =================== */
-function calcular() {
-  const filas = [...document.querySelectorAll('#tableWindows tbody tr')];
-  if (filas.length === 0) { alert('Agrega al menos una ventana'); return; }
+/* ================== CALCULAR =================== */
+function calcular(){
+ const filas=[...document.querySelectorAll('#tableWindows tbody tr')];
+ if(filas.length===0){alert('Agrega al menos una ventana');return;}
 
-  const rawLargos = (document.getElementById('globalLargo').value || '6000')
-    .split(',')
-    .map(s => s.trim())
-    .filter(s => s.length > 0);
-  const largosDisponibles = [...new Set(rawLargos.map(v => parseInt(v)).filter(n => !isNaN(n) && n > 0))];
-  if (largosDisponibles.length === 0) largosDisponibles.push(6000);
+ const piezasPorPerfil={},resumenHerrajes={},resumenVentanas={};
+ let totalUsado=0,totalDisponible=0;
+ const resumenPorPerfil={},resumenPorLargo={},tirasPorPerfil={};
 
-  const piezasPorPerfil = {}, resumenHerrajes = {}, resumenVentanas = {};
-  let totalUsado = 0, totalDisponible = 0;
-  const resumenPorPerfil = {}, resumenPorLargo = {}, tirasPorPerfil = {};
+ for(const tr of filas){
+  const tds=tr.querySelectorAll('td');
+  const winId=tds[0].querySelector('input').value.trim()||'-';
+  const ancho=parseFloat(tds[1].querySelector('input').value)||0;
+  const alto=parseFloat(tds[2].querySelector('input').value)||0;
+  const qty=parseInt(tds[3].querySelector('input').value)||1;
+  const sistema=tds[4].querySelector('select').value;
+  const rawRow=(tds[5].querySelector('input').value||'').split(',').map(s=>s.trim()).filter(s=>s.length>0);
+  const rowLargos=[...new Set(rawRow.map(v=>parseInt(v)).filter(n=>!isNaN(n)&&n>0))];
+  const sys=SYSTEMS[sistema]||{};
 
-  for (const tr of filas) {
-    const tds = tr.querySelectorAll('td');
-    const winId = tds[0].querySelector('input').value.trim() || '-';
-    const ancho = parseFloat(tds[1].querySelector('input').value) || 0;
-    const alto = parseFloat(tds[2].querySelector('input').value) || 0;
-    const qty = parseInt(tds[3].querySelector('input').value) || 1;
-    const sistema = tds[4].querySelector('select').value;
-    const sys = SYSTEMS[sistema] || {};
+  if(!resumenVentanas[winId])resumenVentanas[winId]={ancho,alto,qty:0};
+  resumenVentanas[winId].qty+=qty;
 
-    if (!resumenVentanas[winId]) resumenVentanas[winId] = { ancho, alto, qty: 0 };
-    resumenVentanas[winId].qty += qty;
-
-    for (const [perfil, def] of Object.entries(sys)) {
-      if (def.tipo === 'herraje') {
-        const cantidadTotal = (def.cantidad || 1) * qty;
-        resumenHerrajes[perfil] = (resumenHerrajes[perfil] || 0) + cantidadTotal;
-        continue;
-      }
-      const cortes = [];
-      for (let i = 0; i < (def.altos || 0); i++) cortes.push(alto);
-      const anchoCorte = def.dividirAncho ? Math.round(ancho / 2) : ancho;
-      for (let i = 0; i < (def.anchos || 0); i++) cortes.push(anchoCorte);
-      for (let q = 0; q < qty; q++) {
-        piezasPorPerfil[perfil] = piezasPorPerfil[perfil] || [];
-        cortes.forEach(len => piezasPorPerfil[perfil].push({ winId, len }));
-      }
+  for(const [perfil,def] of Object.entries(sys)){
+    if(def.tipo==="herraje"){const cantidadTotal=(def.cantidad||1)*qty;resumenHerrajes[perfil]=(resumenHerrajes[perfil]||0)+cantidadTotal;continue;}
+    const cortes=[];for(let i=0;i<(def.altos||0);i++)cortes.push(alto);
+    const anchoCorte=def.dividirAncho?Math.round(ancho/2):ancho;
+    for(let i=0;i<(def.anchos||0);i++)cortes.push(anchoCorte);
+    for(let q=0;q<qty;q++){
+      piezasPorPerfil[perfil]=piezasPorPerfil[perfil]||[];
+      cortes.forEach(len=>piezasPorPerfil[perfil].push({winId,len}));
     }
   }
+ }
 
-  for (const [perfil, piezas] of Object.entries(piezasPorPerfil)) {
-    const bins = solveCutsMultiLargo(piezas, largosDisponibles, MERMA);
-    tirasPorPerfil[perfil] = { tiras: bins };
-    resumenPorPerfil[perfil] = bins.length;
-    for (const b of bins) {
-      totalUsado += b.utilizada || b.piezas.reduce((a, p) => a + p.len, 0);
-      totalDisponible += b.largo;
-      resumenPorLargo[b.largo] = (resumenPorLargo[b.largo] || 0) + 1;
-    }
+ for(const [perfil,piezas] of Object.entries(piezasPorPerfil)){
+  const largos=rowLargos.length?rowLargos:[6000];
+  const bins=solveCutsMultiLargo(piezas,largos,MERMA);
+  tirasPorPerfil[perfil]={tiras:bins};
+  resumenPorPerfil[perfil]=bins.length;
+  for(const b of bins){
+   totalUsado+=b.utilizada||b.piezas.reduce((a,p)=>a+p.len,0);
+   totalDisponible+=b.largo;
+   resumenPorLargo[b.largo]=(resumenPorLargo[b.largo]||0)+1;
   }
+ }
 
-  const aprovechamiento = totalDisponible > 0 ? (totalUsado / totalDisponible) * 100 : 0;
-  lastResults = {
-    proyecto: document.getElementById('projectName').value || '',
-    usuario: currentUser || '',
-    resumenPorPerfil,
-    resumenPorLargo,
-    resumenHerrajes,
-    resumenVentanas,
-    tirasPorPerfil,
-    aprovechamiento,
-    totalUsado,
-    totalDisponible
-  };
+ const aprovechamiento=totalDisponible>0?(totalUsado/totalDisponible)*100:0;
+ lastResults={proyecto:document.getElementById('projectName').value||'',usuario:currentUser||'',resumenPorPerfil,resumenPorLargo,resumenHerrajes,resumenVentanas,tirasPorPerfil,aprovechamiento,totalUsado,totalDisponible};
 
-  // Mostrar resumen completo
-  let html = `<b>RESUMEN DE VENTANAS (ID = Ancho × Alto, Cantidad)</b><br>`;
-  Object.entries(resumenVentanas).forEach(([id, v]) => {
-    html += `${id}: ${v.ancho} × ${v.alto} mm, Cantidad: ${v.qty}<br>`;
-  });
-
-  html += `<br><b>RESUMEN DE HERRAJES Y ACCESORIOS</b><br>`;
-  Object.entries(resumenHerrajes).forEach(([k, v]) => {
-    html += `${k}: ${Number(v).toFixed(2)}<br>`;
-  });
-
-  html += `<br><b>RESUMEN DE TIRAS POR PERFIL</b><br>`;
-  Object.entries(resumenPorPerfil).forEach(([perfil, cant]) => {
-    html += `${perfil}: ${cant} tiras<br>`;
-  });
-
-  html += `<br><b>RESUMEN POR LARGO DE TIRA</b><br>`;
-  Object.keys(resumenPorLargo)
-    .map(k => parseInt(k))
-    .sort((a, b) => b - a)
-    .forEach(l => {
-      html += `${resumenPorLargo[l]} tiras de ${l} mm<br>`;
-    });
-
-  html += `<br><b>Total usado:</b> ${totalUsado.toFixed(0)} mm<br>`;
-  html += `<b>Total disponible:</b> ${totalDisponible.toFixed(0)} mm<br>`;
-  html += `<b>Aprovechamiento:</b> ${aprovechamiento.toFixed(2)}%`;
-
-  document.getElementById('summary').innerHTML = html;
-}
-
-
-/* ================== EXPORTAR PDF (con tablas limpias y agrupadas) =================== */
-function exportPdf() {
-  if (!lastResults || !lastResults.tirasPorPerfil) {
-    alert('Primero presiona Calcular resumen.');
-    return;
-  }
-
-  try {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    const margin = 36;
-    let y = margin;
-
-    // ===== Encabezado general =====
-    doc.setFontSize(16);
-    doc.setTextColor(20);
-    doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW / 2, y, { align: 'center' });
-    y += 20;
-
-    doc.setFontSize(10);
-    doc.text(`Proyecto: ${lastResults.proyecto || '-'}`, margin, y);
-    doc.text(`Usuario: ${lastResults.usuario || '-'}`, margin + 220, y);
-    doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 200, y);
-    y += 16;
-    doc.line(margin, y, pageW - margin, y);
-    y += 14;
-
-    // ===== Tabla de Ventanas =====
-    const drawTable = (headers, rows, startY) => {
-      const colWidths = [120, 120, 120, 100];
-      const cellH = 16;
-      let x = margin;
-      doc.setDrawColor(180);
-      doc.setFontSize(9);
-      doc.setTextColor(255);
-      doc.setFillColor(60);
-
-      // Encabezado
-      headers.forEach((h, i) => {
-        doc.rect(x, startY, colWidths[i], cellH, 'F');
-        doc.text(h, x + colWidths[i] / 2, startY + 11, { align: 'center' });
-        x += colWidths[i];
-      });
-
-      // Filas
-      doc.setTextColor(0);
-      let yPos = startY + cellH;
-      rows.forEach(r => {
-        x = margin;
-        r.forEach((c, i) => {
-          doc.rect(x, yPos, colWidths[i], cellH);
-          doc.text(String(c), x + colWidths[i] / 2, yPos + 11, { align: 'center' });
-          x += colWidths[i];
-        });
-        yPos += cellH;
-      });
-      return yPos + 10;
-    };
-
-    // Ventanas
-    doc.setFontSize(11);
-    doc.setTextColor(20);
-    doc.text('RESUMEN DE VENTANAS', margin, y);
-    y += 6;
-
-    const ventanas = Object.entries(lastResults.resumenVentanas || {});
-    if (ventanas.length === 0) {
-      doc.text('No hay ventanas registradas.', margin, y + 10);
-      y += 20;
-    } else {
-      const rows = ventanas.map(([id, v]) => [id, `${v.ancho} mm`, `${v.alto} mm`, v.qty]);
-      y = drawTable(['ID', 'Ancho', 'Alto', 'Cantidad'], rows, y + 10);
-    }
-
-    // ===== Tabla de Herrajes =====
-    doc.setFontSize(11);
-    doc.text('RESUMEN DE HERRAJES Y ACCESORIOS', margin, y);
-    y += 6;
-
-    const herrajes = Object.entries(lastResults.resumenHerrajes || {});
-    if (herrajes.length === 0) {
-      doc.text('No se registraron herrajes.', margin, y + 10);
-      y += 20;
-    } else {
-      const rows = herrajes.map(([k, v]) => [k, `${Number(v).toFixed(2)}`]);
-      const colWidths = [240, 100];
-      const cellH = 16;
-      let x = margin;
-      doc.setFontSize(9);
-      doc.setFillColor(60);
-      doc.setTextColor(255);
-      doc.rect(x, y + 10, colWidths[0], cellH, 'F');
-      doc.rect(x + colWidths[0], y + 10, colWidths[1], cellH, 'F');
-      doc.text('Código', x + colWidths[0] / 2, y + 20, { align: 'center' });
-      doc.text('Cantidad', x + colWidths[0] + colWidths[1] / 2, y + 20, { align: 'center' });
-      y += cellH + 10;
-      doc.setTextColor(0);
-      rows.forEach(r => {
-        doc.rect(x, y, colWidths[0], cellH);
-        doc.rect(x + colWidths[0], y, colWidths[1], cellH);
-        doc.text(r[0], x + colWidths[0] / 2, y + 11, { align: 'center' });
-        doc.text(r[1], x + colWidths[0] + colWidths[1] / 2, y + 11, { align: 'center' });
-        y += cellH;
-      });
-      y += 10;
-    }
-
-    // ===== Resumen de tiras =====
-    doc.setFontSize(11);
-    doc.text('RESUMEN DE TIRAS POR PERFIL Y LARGO', margin, y);
-    y += 10;
-    doc.setFontSize(9);
-    Object.entries(lastResults.resumenPorPerfil || {}).forEach(([perfil, cant]) => {
-      doc.text(`${perfil}: ${cant} tiras`, margin, y);
-      y += 8;
-    });
-    Object.entries(lastResults.resumenPorLargo || {}).forEach(([l, c]) => {
-      doc.text(`${c} tiras de ${l} mm`, margin, y);
-      y += 8;
-    });
-
-    y += 10;
-    doc.setFontSize(10);
-    doc.text(`Aprovechamiento total: ${lastResults.aprovechamiento.toFixed(2)}%`, margin, y);
-    y += 20;
-
-    // ===== Diagramas =====
-    const barW = 900, barH = 22, gap = 45, containerX = margin + 140;
-    for (const [perfil, obj] of Object.entries(lastResults.tirasPorPerfil || {})) {
-      const allTiras = obj.tiras || [];
-      if (allTiras.length === 0) continue;
-      if (y > pageH - 160) { doc.addPage(); y = margin; }
-      doc.setFontSize(12);
-      doc.text(`${perfil} — Diagramas (${allTiras.length} tiras)`, margin, y);
-      y += 12;
-
-      const tirasMap = new Map();
-      for (const t of allTiras) {
-        const clave = JSON.stringify(t.piezas.map(p => `${p.winId}-${p.len}`)) + '|' + t.largo;
-        if (!tirasMap.has(clave)) tirasMap.set(clave, { ...t, count: 1 });
-        else tirasMap.get(clave).count++;
-      }
-      const tiras = Array.from(tirasMap.values());
-
-      for (let i = 0; i < tiras.length; i++) {
-        const t = tiras[i];
-        const label = `Tira ${i + 1} (${t.largo} mm)` + (t.count > 1 ? ` ×${t.count}` : '');
-        if (y + barH + gap > pageH - 80) { doc.addPage(); y = margin; }
-        doc.setFontSize(9);
-        doc.text(label, containerX - 20, y + barH / 2 + 3, { align: 'right' });
-        doc.rect(containerX, y, barW, barH);
-
-        const piezasLen = t.piezas.map(p => p.len);
-        const totalLen = piezasLen.reduce((a, b) => a + b, 0);
-        const minW = 40;
-        const scale = (barW - minW * piezasLen.length) / totalLen;
-        let x = containerX;
-
-        for (const p of t.piezas) {
-          const seg = minW + p.len * scale;
-          const color = colorForId(p.winId);
-          doc.setFillColor(color[0], color[1], color[2]);
-          doc.rect(x, y, seg, barH, 'F');
-
-          doc.setTextColor(30);
-          doc.setFontSize(8);
-          doc.text(p.winId, x + seg / 2, y - 5, { align: 'center' });
-
-          doc.setTextColor(255);
-          doc.text(`${p.len} mm`, x + seg / 2, y + barH / 2 + 3, { align: 'center' });
-
-          doc.setDrawColor(0);
-          doc.line(x + seg, y, x + seg, y + barH);
-          x += seg;
-        }
-
-        const restante = Math.round(t.restante || 0);
-        if (restante > 0) {
-          const sobraW = (restante / t.largo) * barW;
-          doc.setFillColor(200);
-          doc.rect(containerX + barW - sobraW, y, sobraW, barH, 'F');
-          doc.setTextColor(0);
-          doc.text(`Sobrante ${restante} mm`, containerX + barW - sobraW / 2, y + barH / 2 + 3, { align: 'center' });
-        }
-        y += gap;
-      }
-      y += 10;
-    }
-
-    // ===== Pie de página =====
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(100);
-      doc.text(`Página ${i} de ${totalPages} — Generado por Optimizador Técnico de Cortes`, pageW / 2, pageH - 16, { align: 'center' });
-    }
-
-    // Guardar PDF
-    doc.save(`Reporte_Cortes_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.pdf`);
-  } catch (err) {
-    console.error('Error en exportPdf:', err);
-    alert('Error al generar PDF.');
-  }
+ let html=`<b>RESUMEN DE VENTANAS (ID = Ancho × Alto, Cantidad)</b><br>`;
+ Object.entries(resumenVentanas).forEach(([id,v])=>{html+=`${id}: ${v.ancho} × ${v.alto} mm, Cantidad: ${v.qty}<br>`;});
+ html+=`<br><b>RESUMEN DE HERRAJES Y ACCESORIOS</b><br>`;
+ Object.entries(resumenHerrajes).forEach(([k,v])=>{html+=`${k}: ${Number(v).toFixed(2)}<br>`;});
+ html+=`<br><b>RESUMEN DE TIRAS POR PERFIL</b><br>`;
+ Object.entries(resumenPorPerfil).forEach(([perfil,cant])=>{html+=`${perfil}: ${cant} tiras<br>`;});
+ html+=`<br><b>RESUMEN POR LARGO DE TIRA</b><br>`;
+ Object.keys(resumenPorLargo).map(k=>parseInt(k)).sort((a,b)=>b-a).forEach(l=>{html+=`${resumenPorLargo[l]} tiras de ${l} mm<br>`;});
+ html+=`<br><b>Total usado:</b> ${totalUsado.toFixed(0)} mm<br><b>Total disponible:</b> ${totalDisponible.toFixed(0)} mm<br><b>Aprovechamiento:</b> ${aprovechamiento.toFixed(2)}%`;
+ document.getElementById('summary').innerHTML=html;
 }
 
 /* ----------------- UTIL: BORRAR TODO ----------------- */
-function borrarTodo() {
-  if (!confirm('¿Borrar todo?')) return;
-  document.querySelector('#tableWindows tbody').innerHTML = '';
-  lastResults = null;
-  document.getElementById('summary').innerText = 'Presiona "Calcular resumen" para ver totales por perfil.';
-  localStorage.removeItem('cortesApp');
+function borrarTodo(){
+ if(!confirm('¿Borrar todo?'))return;
+ document.querySelector('#tableWindows tbody').innerHTML='';
+ lastResults=null;
+ document.getElementById('summary').innerText='Presiona "Calcular resumen" para ver totales por perfil.';
+ localStorage.removeItem('cortesApp');
 }
 </script>
 </body>
 </html>
+
