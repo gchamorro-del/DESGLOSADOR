@@ -379,28 +379,46 @@ function exportPdf() {
     }
     y += 8;
 
-    // ---------- Resumen por largo ----------
-    doc.setFontSize(11);
-    doc.setTextColor(40);
-    doc.text('RESUMEN DE TIRAS POR LARGO', margin, y);
-    y += 10;
+// ---------- Resumen de tiras por largo y perfil ----------
+doc.setFontSize(11);
+doc.setTextColor(40);
+doc.text('RESUMEN DE TIRAS POR LARGO', margin, y);
+y += 10;
 
-    doc.setFontSize(9);
-    doc.setTextColor(0);
-    const resumenPorLargo = lastResults.resumenPorLargo || {};
-    if (Object.keys(resumenPorLargo).length === 0) {
-      doc.text('No se registraron tiras.', margin, y);
-      y += 10;
-    } else {
-      Object.keys(resumenPorLargo)
-        .map(k => parseInt(k))
-        .sort((a, b) => b - a)
-        .forEach(l => {
-          doc.text(`${resumenPorLargo[l]} tiras de ${l} mm`, margin, y);
-          y += 8;
-        });
+doc.setFontSize(9);
+doc.setTextColor(0);
+
+const perfiles = lastResults.tirasPorPerfil || {};
+if (Object.keys(perfiles).length === 0) {
+  doc.text('No se registraron tiras.', margin, y);
+  y += 10;
+} else {
+  // Agrupar por largo y perfil
+  const resumenLargos = {};
+  for (const [perfil, obj] of Object.entries(perfiles)) {
+    const tiras = obj.tiras || [];
+    for (const t of tiras) {
+      const largo = t.largo || 0;
+      if (!resumenLargos[largo]) resumenLargos[largo] = {};
+      resumenLargos[largo][perfil] = (resumenLargos[largo][perfil] || 0) + 1;
     }
-    y += 6;
+  }
+
+  // Ordenar y mostrar
+  Object.keys(resumenLargos)
+    .map(k => parseInt(k))
+    .sort((a, b) => b - a)
+    .forEach(l => {
+      const perfilesData = resumenLargos[l];
+      const resumenTxt = Object.entries(perfilesData)
+        .map(([perfil, count]) => `${count} tiras — ${perfil}`)
+        .join('   ');
+      doc.text(`Tiras de ${l} mm: ${resumenTxt}`, margin, y);
+      y += 9;
+    });
+}
+
+y += 8;
 
     // ---------- Aprovechamiento total ----------
     doc.setFontSize(11);
