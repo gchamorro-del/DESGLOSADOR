@@ -518,31 +518,39 @@ function exportPdf() {
           x += segFinal;
         }
 
-        // ------- Sobrante (bloque gris + texto) -------
-        const restante = Math.max(0, Math.round(Number(t.restante) || 0));
-        if (restante > 0 && x < containerX + containerW - 2) {
-          const sobraW = Math.round(restante * scale);
-          const maxAllowed = containerX + containerW - x;
-          const w = Math.min(sobraW, Math.max(0, Math.round(maxAllowed)));
-          if (w > 0) {
-            doc.setFillColor(200, 200, 200);
-            doc.rect(x, y, w, barH, 'F');
+// ------- Sobrante (bloque gris + texto) -------
+// Calcular el sobrante real (basado en los datos del modelo, no en el dibujo)
+const restanteReal = Math.max(0, Math.round((t.largo || 0) - (t.utilizada || 0) - MERMA));
 
-            doc.setTextColor(0);
-            doc.setFontSize(8);
-            if (w > 60) {
-              doc.text(`Sobrante ${restante} mm`, x + w / 2, y + barH / 2 + 3, { align: 'center' });
-            } else {
-              doc.text(`${restante} mm`, x + Math.min(w - 4, 20), y + barH / 2 + 3);
-            }
+// Solo dibujar si realmente hay sobrante físico
+if (restanteReal > 0 && x < containerX + containerW - 2) {
+  const sobraW = Math.round(restanteReal * scale);
+  const maxAllowed = containerX + containerW - x;
+  const w = Math.min(sobraW, Math.max(0, Math.round(maxAllowed)));
 
-            // línea divisoria al final del sobrante
-            doc.setDrawColor(0);
-            doc.setLineWidth(0.5);
-            doc.line(x + w, y, x + w, y + barH);
-          }
-        }
+  if (w > 0) {
+    // Dibujar bloque gris del sobrante real
+    doc.setFillColor(200, 200, 200);
+    doc.rect(x, y, w, barH, 'F');
 
+    // Mostrar etiqueta solo si el sobrante es significativo
+    if (restanteReal >= 100) {
+      doc.setTextColor(0);
+      doc.setFontSize(8);
+      const label = `Sobrante ${restanteReal} mm`;
+      if (w > 60) {
+        doc.text(label, x + w / 2, y + barH / 2 + 3, { align: 'center' });
+      } else {
+        doc.text(`${restanteReal} mm`, x + Math.min(w - 4, 20), y + barH / 2 + 3);
+      }
+    }
+
+    // Línea divisoria final
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.5);
+    doc.line(x + w, y, x + w, y + barH);
+  }
+}
         // ------- Escala bajo la barra -------
        // ------- Escala bajo la barra -------
 doc.setDrawColor(180);
