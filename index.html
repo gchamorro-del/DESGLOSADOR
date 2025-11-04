@@ -552,14 +552,7 @@ if (restanteReal > 0 && x < containerX + containerW - 2) {
   }
 }
         // ------- Escala bajo la barra -------
-       // ------- Escala bajo la barra -------
-doc.setDrawColor(180);
-doc.line(containerX, y + barH + 6, containerX + containerW, y + barH + 6);
-doc.setFontSize(7);
-doc.setTextColor(0);
-doc.text('0', containerX, y + barH + 16);
-doc.text(`${capacidad} mm`, containerX + containerW, y + barH + 16, { align: 'right' });
-
+    
 // Avanzar a la siguiente barra
 y += gap;
 } // <-- cierra el for (tiras)
