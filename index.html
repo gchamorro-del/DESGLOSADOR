@@ -338,27 +338,27 @@ const drawTable = (headers, rows, startY, widths) => {
   const cellH = 18;
   let x = margin;
 
-  // ----- Encabezado -----
+  // ----- ENCABEZADO (MISMO COLOR QUE ID / CÓDIGO / PERFIL) -----
   doc.setFontSize(10);
-  doc.setDrawColor(0); // sin bordes visibles en el header
-  doc.setFillColor(34, 34, 34); // 🔹 gris oscuro
-  doc.setTextColor(255, 255, 255); // 🔹 texto blanco
+  doc.setDrawColor(0);
+  doc.setFillColor(60, 60, 60); // 🔹 usa el mismo gris del resto del reporte
+  doc.setTextColor(255, 255, 255);
   headers.forEach((h, i) => {
-    doc.rect(x, startY, colWidths[i], cellH, 'F'); // fondo gris oscuro
+    doc.rect(x, startY, colWidths[i], cellH, 'F');
     doc.text(h, x + colWidths[i] / 2, startY + 12, { align: 'center' });
     x += colWidths[i];
   });
 
-  // ----- Filas -----
+  // ----- FILAS -----
   doc.setFontSize(9);
-  doc.setTextColor(0, 0, 0); // texto negro
+  doc.setTextColor(0, 0, 0);
   let yPos = startY + cellH;
   rows.forEach(r => {
     x = margin;
     r.forEach((c, i) => {
-      doc.setDrawColor(200); // bordes suaves
-      doc.setFillColor(255, 255, 255); // fondo blanco
-      doc.rect(x, yPos, colWidths[i], cellH, 'S'); // solo borde
+      doc.setDrawColor(180);
+      doc.setFillColor(255, 255, 255);
+      doc.rect(x, yPos, colWidths[i], cellH, 'S');
       doc.text(String(c), x + colWidths[i] / 2, yPos + 12, { align: 'center' });
       x += colWidths[i];
     });
