@@ -104,7 +104,8 @@
 </div>
 
 <script>
-const PASSWORD="1234";
+document.addEventListener("DOMContentLoaded", () => {
+  const PASSWORD="1234";
 const MERMA=50;
 let currentUser=null;
 let lastResults=null;
@@ -143,6 +144,9 @@ const SYSTEMS={
 "Proyección":{},
 "Otro":{}};
   
+});
+</script>
+
 /* LOGIN */
 document.getElementById('loginBtn').addEventListener('click',()=>{
  const u=document.getElementById('loginUser').value.trim();
