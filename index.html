@@ -483,38 +483,50 @@ function exportPdf() {
     doc.line(margin, y, pageW - margin, y);
     y += 14;
 
- /// ===== Utilidad para dibujar tablas genéricas (con colores correctos) =====
+/ ===== Utilidad para dibujar tablas genéricas (robusta) =====
 const drawTable = (headers, rows, startY, widths) => {
   const colWidths = widths;
   const cellH = 18;
+  const borderHeader = 0.8;
+  const borderRow = 0.6;
   let x = margin;
 
   // ----- ENCABEZADO -----
   doc.setFontSize(10);
-  doc.setDrawColor(0);
-  doc.setFillColor(45, 45, 45);   // gris oscuro
-  doc.setTextColor(255, 255, 255); // texto blanco
+  doc.setLineWidth(borderHeader);
+  doc.setDrawColor(30, 30, 30);      // borde encabezado (oscuro)
+  doc.setFillColor(45, 45, 45);      // fondo encabezado (oscuro)
+  doc.setTextColor(255, 255, 255);   // texto blanco
+
   headers.forEach((h, i) => {
-    doc.rect(x, startY, colWidths[i], cellH, 'F');
+    doc.rect(x, startY, colWidths[i], cellH, 'FD'); // Fill + Stroke
     doc.text(h, x + colWidths[i] / 2, startY + 12, { align: 'center' });
     x += colWidths[i];
   });
 
   // ----- FILAS -----
   doc.setFontSize(9);
+  doc.setLineWidth(borderRow);
   let yPos = startY + cellH;
+
   rows.forEach(r => {
     x = margin;
     r.forEach((c, i) => {
-      doc.setDrawColor(200);
-      doc.setFillColor(255, 255, 255);  // fondo blanco
-      doc.rect(x, yPos, colWidths[i], cellH, 'F'); // “F” rellena sin sobreescribir texto
-      doc.setTextColor(0, 0, 0);         // texto negro visible
+      // borde suave y fondo blanco por celda
+      doc.setDrawColor(190, 190, 190);
+      doc.setFillColor(255, 255, 255);
+      doc.rect(x, yPos, colWidths[i], cellH, 'FD'); // Fill + Stroke
+      doc.setTextColor(0, 0, 0); // texto negro
       doc.text(String(c), x + colWidths[i] / 2, yPos + 12, { align: 'center' });
       x += colWidths[i];
     });
     yPos += cellH;
   });
+
+  // restablecer colores “seguros” para lo siguiente
+  doc.setTextColor(0, 0, 0);
+  doc.setDrawColor(0, 0, 0);
+  doc.setFillColor(255, 255, 255);
 
   return yPos + 14;
 };
