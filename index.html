@@ -106,92 +106,87 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const PASSWORD="1234";
-const MERMA=50;
-let currentUser=null;
-let lastResults=null;
+  const MERMA=50;
+  let currentUser=null;
+  let lastResults=null;
 
-const SYSTEMS={
-"Ventana Corrediza Europea 3V (3 Hojas)":{
-"MTG1399":{altos:2,anchos:2},
-"MTG2177":{altos:6,anchos:6,dividirAncho:true},
-"MTG2176":{altos:4,anchos:0},
-"F04":{tipo:"herraje",calcularSegun:{"MTG2177":2,"MTG2176":1}},
-"EUAA05L":{cantidad:20,tipo:"herraje"},
-"EUAP01":{cantidad:1.5,tipo:"herraje"},
-"EUCH01":{cantidad:2,tipo:"herraje"},
-"EUCH02":{cantidad:2,tipo:"herraje"}
-},
+  const SYSTEMS={
+    "Ventana Corrediza Europea 3V (3 Hojas)":{
+      "MTG1399":{altos:2,anchos:2},
+      "MTG2177":{altos:6,anchos:6,dividirAncho:true},
+      "MTG2176":{altos:4,anchos:0},
+      "F04":{tipo:"herraje",calcularSegun:{"MTG2177":2,"MTG2176":1}},
+      "EUAA05L":{cantidad:20,tipo:"herraje"},
+      "EUAP01":{cantidad:1.5,tipo:"herraje"},
+      "EUCH01":{cantidad:2,tipo:"herraje"},
+      "EUCH02":{cantidad:2,tipo:"herraje"}
+    },
+    "Ventana Europea Fija":{
+      "MTG2180":{altos:2,anchos:2},
+      "MTG2184":{altos:2,anchos:2},
+      "EUAA01":{cantidad:4,tipo:"herraje"}
+    },
+    "Ventana Corrediza Europea 3V (2 Hojas + Cedazo)":{
+      "MTG1399":{altos:2,anchos:2},
+      "MTG2177":{altos:4,anchos:4,dividirAncho:true},
+      "MTG2078":{altos:2,anchos:2,dividirAncho:true}, 
+      "MTG2176":{altos:4,anchos:0},
+      "F04":{tipo:"herraje",calcularSegun:{"MTG2177":2,"MTG2176":1}},
+      "EUAA05L":{cantidad:20,tipo:"herraje"},
+      "EUAP01":{cantidad:1.5,tipo:"herraje"},
+      "EUCH01":{cantidad:2,tipo:"herraje"},
+      "EUCH02":{cantidad:2,tipo:"herraje"}
+    },
+    "Batiente":{},
+    "Proyección":{},
+    "Otro":{}
+  };
 
-"Ventana Europea Fija":{
-"MTG2180":{altos:2,anchos:2},
-"MTG2184":{altos:2,anchos:2},
-"EUAA01":{cantidad:4,tipo:"herraje"}
-},
-  
-"Ventana Corrediza Europea 3V (2 Hojas + Cedazo)":{
-"MTG1399":{altos:2,anchos:2},
-"MTG2177":{altos:4,anchos:4,dividirAncho:true},
-"MTG2078":{altos:2,anchos:2,dividirAncho:true}, 
-"MTG2176":{altos:4,anchos:0},
-"F04":{tipo:"herraje",calcularSegun:{"MTG2177":2,"MTG2176":1}},
-"EUAA05L":{cantidad:20,tipo:"herraje"},
-"EUAP01":{cantidad:1.5,tipo:"herraje"},
-"EUCH01":{cantidad:2,tipo:"herraje"},
-"EUCH02":{cantidad:2,tipo:"herraje"}
-},
-  
-"Batiente":{},
-"Proyección":{},
-"Otro":{}};
-  
-});
-</script>
+  /* LOGIN */
+  document.getElementById('loginBtn').addEventListener('click',()=>{
+    const u=document.getElementById('loginUser').value.trim();
+    const p=document.getElementById('loginPass').value;
+    if(!u||!p){alert('Ingrese usuario y contraseña');return;}
+    if(p!==PASSWORD){alert('Contraseña incorrecta');document.getElementById('loginPass').value='';return;}
+    currentUser=u;
+    document.getElementById('hdrUser').innerText=`Usuario: ${u}`;
+    document.getElementById('loginSection').style.display='none';
+    document.getElementById('appSection').style.display='block';
+    addRow();
+  });
 
-/* LOGIN */
-document.getElementById('loginBtn').addEventListener('click',()=>{
- const u=document.getElementById('loginUser').value.trim();
- const p=document.getElementById('loginPass').value;
- if(!u||!p){alert('Ingrese usuario y contraseña');return;}
- if(p!==PASSWORD){alert('Contraseña incorrecta');document.getElementById('loginPass').value='';return;}
- currentUser=u;
- document.getElementById('hdrUser').innerText=`Usuario: ${u}`;
- document.getElementById('loginSection').style.display='none';
- document.getElementById('appSection').style.display='block';
- addRow();
-});
+  /* INTERFAZ */
+  function addRow(){
+    const tbody=document.querySelector('#tableWindows tbody');
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><input type="text" placeholder="V1"></td>
+      <td><input type="number" placeholder="1000" min="0"></td>
+      <td><input type="number" placeholder="1500" min="0"></td>
+      <td><input type="number" value="1" min="1"></td>
+      <td><select>${Object.keys(SYSTEMS).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></td>
+      <td><input type="text" placeholder="Ej: 5000,6000"></td>
+      <td><button class="btn ghost" onclick="this.closest('tr').remove()">X</button></td>`;
+    tbody.appendChild(tr);
+  }
 
-/* INTERFAZ */
-function addRow(){
- const tbody=document.querySelector('#tableWindows tbody');
- const tr=document.createElement('tr');
- tr.innerHTML=`
- <td><input type="text" placeholder="V1"></td>
- <td><input type="number" placeholder="1000" min="0"></td>
- <td><input type="number" placeholder="1500" min="0"></td>
- <td><input type="number" value="1" min="1"></td>
- <td><select>${Object.keys(SYSTEMS).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></td>
- <td><input type="text" placeholder="Ej: 5000,6000"></td>
- <td><button class="btn ghost" onclick="this.closest('tr').remove()">X</button></td>`;
- tbody.appendChild(tr);
-}
-
-/* COLOR */
-function colorForId(id){
- const hash=[...String(id)].reduce((a,c)=>a+c.charCodeAt(0),0);
- const hue=hash%360;
- return hslToRgb(hue/360,0.65,0.5);
-}
-function hslToRgb(h,s,l){
- let r,g,b;
- if(s==0){r=g=b=l;}
- else{
- const hue2rgb=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
- const q=l<0.5?l*(1+s):l+s-l*s;
- const p=2*l-q;
- r=hue2rgb(p,q,h+1/3);g=hue2rgb(p,q,h);b=hue2rgb(p,q,h-1/3);}
- return[Math.round(r*255),Math.round(g*255),Math.round(b*255)];
-}
-
+  /* COLOR */
+  function colorForId(id){
+    const hash=[...String(id)].reduce((a,c)=>a+c.charCodeAt(0),0);
+    const hue=hash%360;
+    return hslToRgb(hue/360,0.65,0.5);
+  }
+  function hslToRgb(h,s,l){
+    let r,g,b;
+    if(s==0){r=g=b=l;}
+    else{
+      const hue2rgb=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
+      const q=l<0.5?l*(1+s):l+s-l*s;
+      const p=2*l-q;
+      r=hue2rgb(p,q,h+1/3);g=hue2rgb(p,q,h);b=hue2rgb(p,q,h-1/3);
+    }
+    return[Math.round(r*255),Math.round(g*255),Math.round(b*255)];
+  }
 /* ======================================================================= */
 /* ===================  SOLVER FFD + MEJORAS LOCALES  ===================== */
 /* ======================================================================= */
