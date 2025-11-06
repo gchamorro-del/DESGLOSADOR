@@ -493,7 +493,7 @@ function exportPdf() {
       doc.setFontSize(10);
       doc.setDrawColor(0);
       doc.setFillColor(60, 60, 60);
-      doc.setTextColor(255, 255, 255);
+      doc.setTextColor(0, 0, 0);
       headers.forEach((h, i) => {
         doc.rect(x, startY, colWidths[i], cellH, 'F');
         doc.text(h, x + colWidths[i] / 2, startY + 12, { align: 'center' });
