@@ -188,28 +188,181 @@ function hslToRgb(h,s,l){
  return[Math.round(r*255),Math.round(g*255),Math.round(b*255)];
 }
 
-/* SOLVER */
-function solveCutsMultiLargo(piezas,largosDisponibles,merma=MERMA){
- if(!piezas||piezas.length===0)return[];
- const largos=[...new Set((largosDisponibles||[]).map(v=>parseInt(v)).filter(n=>!isNaN(n)&&n>0))].sort((a,b)=>b-a);
- if(largos.length===0)largos.push(6000);
- const lista=piezas.slice().map(p=>({winId:p.winId,len:Number(p.len)})).filter(p=>p.len>0).sort((a,b)=>b.len-a.len);
- const bins=[],sobrantes=[];
- function placeInSobrantes(pieza){
- let bestIdx=-1,bestRest=Infinity;const need=pieza.len+merma;
- for(let i=0;i<sobrantes.length;i++){const s=sobrantes[i];if(s>=need&&(s-need)<bestRest){bestRest=s-need;bestIdx=i;}}
- if(bestIdx>=0){sobrantes[bestIdx]-=need;if(sobrantes[bestIdx]<20)sobrantes.splice(bestIdx,1);return true;}return false;}
- function placeInBestBin(pieza){
- let best=null,bestRest=Infinity;const need=pieza.len+merma;
- for(const b of bins){if(b.restante>=need){const r=b.restante-need;if(r<bestRest){bestRest=r;best=b;}}}
- if(best){best.piezas.push({winId:pieza.winId,len:pieza.len});best.restante-=need;best.utilizada+=pieza.len;return true;}return false;}
- for(const pieza of lista){if(placeInSobrantes(pieza))continue;if(placeInBestBin(pieza))continue;
- const need=pieza.len+merma;let chosen=null;for(const L of largos.slice().sort((a,b)=>a-b)){if(L>=need){chosen=L;break;}}
- if(!chosen)chosen=Math.max(need,largos[0]||6000);
- bins.push({piezas:[{winId:pieza.winId,len:pieza.len}],largo:chosen,restante:chosen-need,utilizada:pieza.len});}
- for(const b of bins){if(b.restante>20)sobrantes.push(b.restante);}
- bins.forEach((b,i)=>{b.id=i+1;b.utilizada??=b.piezas.reduce((a,p)=>a+p.len,0);});
- return bins;
+/* ======================================================================= */
+/* ===================  SOLVER FFD + MEJORAS LOCALES  ===================== */
+/* ======================================================================= */
+
+/**
+ * Empaca piezas usando FFD (First Fit Decreasing) con mejoras:
+ * - Doble pase por largos (desc/asc) y se elige mejor.
+ * - Lookahead local al abrir una nueva tira: intenta encajar piezas pequeñas al instante.
+ * - Consolidación rápida: mueve piezas desde la tira con mayor sobrante a otras si es posible.
+ * 
+ * piezas: [{winId, len}]
+ * largosDisponibles: [6000, 6500, ...]
+ * merma: mm de merma por pieza (MERMA)
+ */
+function solveCutsMultiLargo(piezas, largosDisponibles, merma=MERMA){
+  if(!Array.isArray(piezas) || piezas.length===0) return [];
+  const largosLimpios = [...new Set((largosDisponibles||[]).map(v=>parseInt(v)).filter(n=>!isNaN(n)&&n>0))];
+  const largosBase = (largosLimpios.length? largosLimpios : [6000]);
+
+  // Construimos dos corridas: largos desc y asc; luego elegimos la de mayor aprovechamiento
+  const resDesc = ffdRun(piezas, [...largosBase].sort((a,b)=>b-a), merma);
+  const resAsc  = ffdRun(piezas, [...largosBase].sort((a,b)=>a-b), merma);
+
+  const score = (bins)=> {
+    const usado = bins.reduce((s,b)=>s+(b.utilizada ?? b.piezas.reduce((a,p)=>a+p.len,0)),0);
+    const disp  = bins.reduce((s,b)=>s+b.largo,0);
+    return disp>0 ? usado/disp : 0;
+  };
+
+  const best = score(resAsc) > score(resDesc) ? resAsc : resDesc;
+
+  // Consolidación rápida (no bloqueante): intenta mover piezas desde la tira con más resto
+  consolidateQuick(best, merma);
+
+  // Recalcula métricas y devuelve
+  best.forEach((b,i)=>{ b.id = i+1; b.utilizada = b.piezas.reduce((a,p)=>a+p.len,0); });
+  return best;
+}
+
+/* --------- Corrida FFD con lookahead local --------- */
+function ffdRun(piezas, largosOrdenados, merma){
+  // Copia y ordena piezas por largo desc (FFD)
+  const items = piezas.map(p=>({winId:p.winId, len:Number(p.len)})).filter(p=>p.len>0).sort((a,b)=>b.len-a.len);
+
+  const bins = [];             // { piezas:[{winId,len}], largo, restante, utilizada }
+  const leftovers = [];        // Restos sueltos (suma de restos de bins previos) para "primera oportunidad"
+
+  const tryPlaceInLeftovers = (lenNeed)=>{ // deja usar restos acumulados si alcanzan
+    // lenNeed ya incluye merma
+    for(let i=0;i<leftovers.length;i++){
+      if(leftovers[i] >= lenNeed){
+        leftovers[i] -= lenNeed;
+        if(leftovers[i] < 20) leftovers.splice(i,1);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const tryPlaceInBins = (piece)=>{        // primera tira que tenga espacio (First Fit)
+    const need = piece.len + merma;
+    for(const b of bins){
+      if(b.restante >= need){
+        b.piezas.push(piece);
+        b.restante -= need;
+        b.utilizada += piece.len;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const chooseBarLength = (need)=>{        // menor largo que soporte la pieza + merma
+    for(const L of largosOrdenados){
+      if(L >= need) return L;
+    }
+    return Math.max(need, largosOrdenados[largosOrdenados.length-1] || 6000);
+  };
+
+  // LOOKAHEAD: al abrir una nueva tira, intentar encajar más piezas pequeñas inmediatamente
+  const greedyFill = (bin)=>{
+    // Tomamos restantes piezas en items (desde el final: son las más pequeñas por orden desc)
+    let changed = true;
+    while(changed){
+      changed = false;
+      for(let i=items.length-1; i>=0; i--){
+        const p = items[i];
+        const need = p.len + merma;
+        if(bin.restante >= need){
+          bin.piezas.push(p);
+          bin.restante -= need;
+          bin.utilizada += p.len;
+          items.splice(i,1);
+          changed = true;
+        }
+      }
+    }
+  };
+
+  // Proceso principal
+  while(items.length){
+    const piece = items.shift();
+    const need = piece.len + merma;
+
+    // 1) intentar en restos sueltos (sobras globales)
+    if(tryPlaceInLeftovers(need)) continue;
+
+    // 2) intentar en tiras abiertas (First Fit)
+    if(tryPlaceInBins(piece)) continue;
+
+    // 3) abrir nueva tira con el menor largo posible que soporte la pieza
+    const L = chooseBarLength(need);
+    const bin = { piezas:[piece], largo:L, restante:L-need, utilizada:piece.len };
+    bins.push(bin);
+
+    // Lookahead local: rellenar con piezas pequeñas que quepan de una vez
+    greedyFill(bin);
+  }
+
+  // Al final, empujar restos de las tiras a "leftovers" (estadístico; ya no se usan)
+  for(const b of bins){
+    if(b.restante > 20) leftovers.push(b.restante);
+  }
+
+  // Normalizar ids
+  bins.forEach((b,i)=>{ b.id=i+1; b.utilizada ??= b.piezas.reduce((a,p)=>a+p.len,0); });
+  return bins;
+}
+
+/* --------- Consolidación rápida: mueve piezas desde la tira con más sobrante --------- */
+function consolidateQuick(bins, merma){
+  if(bins.length < 2) return;
+
+  // Intentamos pocas operaciones para no bloquear (O(n^2) acotado por early exits)
+  // 1) Ordenar tiras por restante desc
+  bins.sort((a,b)=>b.restante - a.restante);
+
+  // 2) Tomar la peor y tratar de mover una o dos piezas a otras tiras (First Fit)
+  const worst = bins[0];
+  if(!worst || worst.piezas.length<=1) return;
+
+  // Probar mover desde la pieza más pequeña (mejora típica)
+  const piezasOrdenadas = [...worst.piezas].sort((a,b)=>a.len-b.len);
+
+  let moved = false;
+  for(const p of piezasOrdenadas){
+    const need = p.len + merma;
+
+    for(let j=1;j<bins.length;j++){
+      const target = bins[j];
+      if(target.restante >= need){
+        // mover p de worst -> target
+        // quitar p de worst
+        const idx = worst.piezas.findIndex(x=>x===p);
+        if(idx>=0){
+          worst.piezas.splice(idx,1);
+          worst.utilizada -= p.len;
+          worst.restante += need;
+        }
+        // agregar a target
+        target.piezas.push(p);
+        target.utilizada += p.len;
+        target.restante -= need;
+        moved = true;
+        break;
+      }
+    }
+    if(moved) break;
+  }
+
+  // Si se vació una tira, eliminarla
+  if(worst.piezas.length===0){
+    const k = bins.indexOf(worst);
+    if(k>=0) bins.splice(k,1);
+  }
 }
 
 /* ================== CALCULAR =================== */
@@ -218,7 +371,6 @@ function calcular(){
  if(filas.length===0){alert('Agrega al menos una ventana');return;}
 
  const piezasPorPerfil={},resumenHerrajes={},resumenVentanas={};
- // Guardamos también los largos por perfil
  const perfilLargosMap={}; // perfil -> Set()
 
  let totalUsado=0,totalDisponible=0;
@@ -234,7 +386,6 @@ function calcular(){
 
   const rawRow=(tds[5].querySelector('input').value||'').split(',').map(s=>s.trim()).filter(s=>s.length>0);
   const rowLargos=[...new Set(rawRow.map(v=>parseInt(v)).filter(n=>!isNaN(n)&&n>0))];
-  // Si una fila no trae largos, puedes forzar alerta; de momento, respaldo 6000
   const rowLargosFinal = rowLargos.length ? rowLargos : [6000];
 
   const sys=SYSTEMS[sistema]||{};
@@ -261,10 +412,10 @@ function calcular(){
   }
  }
 
- // Resolver por perfil usando sus largos propios
+ // Resolver por perfil
  for(const [perfil,piezas] of Object.entries(piezasPorPerfil)){
   const largos = Array.from(perfilLargosMap[perfil]||[]);
-  const largosParaPerfil = (largos.length? largos : [6000]).sort((a,b)=>b-a);
+  const largosParaPerfil = (largos.length? largos : [6000]);
   const bins=solveCutsMultiLargo(piezas,largosParaPerfil,MERMA);
 
   tirasPorPerfil[perfil]={tiras:bins};
@@ -303,7 +454,7 @@ function calcular(){
  document.getElementById('summary').innerHTML=html;
 }
 
-/* ================== EXPORTAR PDF (versión mejorada con tablas completas) =================== */
+/* ================== EXPORTAR PDF (igual UI, mismas tablas) =================== */
 function exportPdf() {
   if (!lastResults || !lastResults.tirasPorPerfil) {
     alert('Primero presiona Calcular resumen.');
@@ -332,41 +483,41 @@ function exportPdf() {
     doc.line(margin, y, pageW - margin, y);
     y += 14;
 
-   // ===== Utilidad para dibujar tablas genéricas =====
-const drawTable = (headers, rows, startY, widths) => {
-  const colWidths = widths;
-  const cellH = 18;
-  let x = margin;
+    // ===== Utilidad para dibujar tablas genéricas =====
+    const drawTable = (headers, rows, startY, widths) => {
+      const colWidths = widths;
+      const cellH = 18;
+      let x = margin;
 
-  // ----- ENCABEZADO (MISMO COLOR QUE ID / CÓDIGO / PERFIL) -----
-  doc.setFontSize(10);
-  doc.setDrawColor(0);
-  doc.setFillColor(60, 60, 60); // 🔹 usa el mismo gris del resto del reporte
-  doc.setTextColor(255, 255, 255);
-  headers.forEach((h, i) => {
-    doc.rect(x, startY, colWidths[i], cellH, 'F');
-    doc.text(h, x + colWidths[i] / 2, startY + 12, { align: 'center' });
-    x += colWidths[i];
-  });
+      // Encabezado
+      doc.setFontSize(10);
+      doc.setDrawColor(0);
+      doc.setFillColor(60, 60, 60);
+      doc.setTextColor(255, 255, 255);
+      headers.forEach((h, i) => {
+        doc.rect(x, startY, colWidths[i], cellH, 'F');
+        doc.text(h, x + colWidths[i] / 2, startY + 12, { align: 'center' });
+        x += colWidths[i];
+      });
 
-  // ----- FILAS -----
-  doc.setFontSize(9);
-  doc.setTextColor(0, 0, 0);
-  let yPos = startY + cellH;
-  rows.forEach(r => {
-    x = margin;
-    r.forEach((c, i) => {
-      doc.setDrawColor(180);
-      doc.setFillColor(255, 255, 255);
-      doc.rect(x, yPos, colWidths[i], cellH, 'S');
-      doc.text(String(c), x + colWidths[i] / 2, yPos + 12, { align: 'center' });
-      x += colWidths[i];
-    });
-    yPos += cellH;
-  });
+      // Filas
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      let yPos = startY + cellH;
+      rows.forEach(r => {
+        x = margin;
+        r.forEach((c, i) => {
+          doc.setDrawColor(180);
+          doc.setFillColor(255, 255, 255);
+          doc.rect(x, yPos, colWidths[i], cellH, 'S');
+          doc.text(String(c), x + colWidths[i] / 2, yPos + 12, { align: 'center' });
+          x += colWidths[i];
+        });
+        yPos += cellH;
+      });
 
-  return yPos + 14;
-};
+      return yPos + 14;
+    };
 
     // ===== RESUMEN DE VENTANAS =====
     doc.setFontSize(12);
