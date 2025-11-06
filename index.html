@@ -530,11 +530,16 @@ function exportPdf() {
       doc.text('No hay ventanas registradas.', margin, y + 10);
       y += 20;
     } else {
-      const rows = ventanas.map(([id, v]) => [id, `${v.ancho}`, `${v.alto}`, v.qty]);
-      y = drawTable(['ID', 'Ancho (mm)', 'Alto (mm)', 'Cantidad'], rows, y + 10, [100, 120, 120, 100]);
+      const rows = ventanas.map(([id, v]) => [
+        id,
+        `${v.ancho}`,
+        `${v.alto}`,
+        `${v.qty}`
+      ]);
+      y = drawTable(['ID', 'Ancho (mm)', 'Alto (mm)', 'Cantidad'], rows, y + 10, [100, 100, 100, 100]);
     }
 
-    // ===== RESUMEN DE HERRAJES =====
+    // ===== RESUMEN DE HERRAJES Y ACCESORIOS =====
     doc.setFontSize(12);
     doc.text('RESUMEN DE HERRAJES Y ACCESORIOS', margin, y);
     y += 8;
@@ -562,11 +567,11 @@ function exportPdf() {
       for (const [l, c] of largos) {
         if (c && perfil in (lastResults.tirasPorPerfil || {})) largoText = `${l}`;
       }
-      rowsPerfil.push([perfil, cant, largoText || '-']);
+      rowsPerfil.push([perfil, `${cant}`, largoText || '-']);
     });
 
     if (rowsPerfil.length > 0) {
-      y = drawTable(['Perfil', 'Cantidad de tiras', 'Largo (mm)'], rowsPerfil, y + 6, [200, 140, 120]);
+      y = drawTable(['Perfil', 'Cantidad', 'Largo (mm)'], rowsPerfil, y + 6, [200, 100, 100]);
     }
 
     doc.setFontSize(10);
@@ -583,7 +588,7 @@ function exportPdf() {
       doc.text(`${perfil} — Diagramas (${allTiras.length} tiras)`, margin, y);
       y += 12;
 
-      // Agrupar tiras idénticas
+      // ✅ AGRUPAR TIRAS IDÉNTICAS
       const tirasMap = new Map();
       for (const t of allTiras) {
         const clave = JSON.stringify(t.piezas.map(p => `${p.winId}-${p.len}`)) + '|' + t.largo;
