@@ -670,16 +670,21 @@ const drawTable = (headers, rows, startY, widths) => {
   }
 }
 
-/* ----------------- UTIL: BORRAR TODO ----------------- */
 function borrarTodo(){
- if(!confirm('¿Borrar todo?'))return;
- document.querySelector('#tableWindows tbody').innerHTML='';
- lastResults=null;
- document.getElementById('summary').innerText='Presiona "Calcular resumen" para ver totales por perfil.';
- localStorage.removeItem('cortesApp');
+  if(!confirm('¿Borrar todo?'))return;
+  document.querySelector('#tableWindows tbody').innerHTML='';
+  lastResults=null;
+  document.getElementById('summary').innerText='Presiona "Calcular resumen" para ver totales por perfil.';
+  localStorage.removeItem('cortesApp');
 }
 
-});
+// 🔽 agrega esto al final del bloque
+window.addRow = addRow;
+window.calcular = calcular;
+window.exportPdf = exportPdf;
+window.borrarTodo = borrarTodo;
+
+}); // cierre del DOMContentLoaded
 </script>
 </body>
 </html>
