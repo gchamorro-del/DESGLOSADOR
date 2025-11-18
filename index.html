@@ -488,7 +488,7 @@ function exportPdf() {
     // containerX = margin + leftOffset, donde leftOffset es el mínimo entre:
     // - un valor deseado (minimalLeftSpace)
     // - la anchura de la etiqueta si es mayor que ese valor
-    const leftOffset = Math.max(minimalLeftSpace, Math.min(maxLabelW + paddingBetweenTextAndBar, pageW * 0.05));
+    const leftOffset = Math.max(minimalLeftSpace, Math.min(maxLabelW + paddingBetweenTextAndBar, pageW * 0.001));
     const containerX = margin + leftOffset;
 
     // ancho util de la barra (no debe pasar del margen derecho)
