@@ -475,7 +475,7 @@ function exportPdf() {
       if (w > maxLabelW) maxLabelW = w;
     });
 
-    const leftOffset = Math.max(minimalLeftSpace, Math.min(maxLabelW + paddingBetweenTextAndBar, pageW * 0.20));
+    const leftOffset = Math.max(minimalLeftSpace, Math.min(maxLabelW + paddingBetweenTextAndBar, pageW * 0.0));
     const containerX = margin + leftOffset;
     const barW = Math.max(40, pageW - containerX - margin);
 
