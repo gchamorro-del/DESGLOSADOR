@@ -398,8 +398,7 @@ function calcular(){
  document.getElementById('summary').innerHTML=html;
 }
 
-/* ================== EXPORTAR PDF (inicio más a la izquierda + priorizar piezas sobre sobrante) =================== */
-/* ================== EXPORTAR PDF (Sobrante en esquina superior derecha) =================== */
+/* ================== EXPORTAR PDF (Sobrante en esquina superior derecha con fondo) =================== */
 function exportPdf() {
   if (!lastResults || !lastResults.tirasPorPerfil) {
     alert('Primero presiona Calcular resumen.');
@@ -586,16 +585,33 @@ function exportPdf() {
             doc.rect(containerX + barW - drawSobraW, y, drawSobraW, barH, 'F');
           }
 
-          // ---------- Etiqueta "Sobrante" en esquina superior derecha de la barra ----------
+          // ---------- Etiqueta "Sobrante" en esquina superior derecha de la barra (MEJORA) ----------
           if (restante > 0) {
-            // colocamos el texto justo por encima y alineado a la derecha del borde de la barra
             const padRight = 6; // separación desde el borde derecho de la barra
             const textX = containerX + barW - padRight;
             const textY = y - 4; // un poco por encima de la barra
+
+            const sobranteText = `Sobrante ${restante} mm`;
             doc.setFontSize(8);
-            doc.setTextColor(20);
-            // alineado a la derecha para quedar dentro del área
-            doc.text(`Sobrante ${restante} mm`, textX, textY, { align: 'right' });
+            const tw = doc.getTextWidth(sobranteText);
+
+            // fondo blanco detrás del texto para legibilidad
+            const bgPad = 4;
+            let bgX = textX - tw - bgPad;
+            const bgW = tw + bgPad * 1.5;
+            const bgH = 12;
+            const bgY = textY - 10;
+
+            // evitar salirse del margen izquierdo
+            if (bgX < margin) bgX = margin;
+
+            doc.setDrawColor(0);
+            doc.setFillColor(255, 255, 255);
+            doc.rect(bgX, bgY, bgW, bgH, 'F');
+
+            // ahora dibujar el texto alineado a la derecha sobre ese fondo
+            doc.setTextColor(30);
+            doc.text(sobranteText, textX, textY, { align: 'right' });
           }
 
           // Avanzar vertical para la siguiente fila
