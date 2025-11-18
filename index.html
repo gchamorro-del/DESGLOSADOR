@@ -399,7 +399,7 @@ function calcular(){
 }
 
 /* ================== EXPORTAR PDF (Sobrante en esquina superior derecha con fondo) =================== */
-/* ================== EXPORTAR PDF (Barra inicia en margin - Opción B) =================== */
+/* ================== EXPORTAR PDF (Sobrante fijo 15px — Opción A) =================== */
 function exportPdf() {
   if (!lastResults || !lastResults.tirasPorPerfil) {
     alert('Primero presiona Calcular resumen.');
@@ -415,6 +415,9 @@ function exportPdf() {
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 28;
     let y = margin;
+
+    // Parámetro fijo de sobrante en px (constante)
+    const SOBRANTE_PX = 15; // fijo y constante para todas las barras
 
     // Encabezado
     doc.setFontSize(16);
@@ -464,8 +467,8 @@ function exportPdf() {
     doc.text(`Aprovechamiento total: ${lastResults.aprovechamiento.toFixed(2)}%`, margin, y);
     y += 22;
 
-    // ===== Ahora: barras iniciando en margin (Opción B) =====
-    const containerX = margin;                 // inicio de barras igual al margin
+    // ===== Iniciar barras en margin (opción B) =====
+    const containerX = margin;                 // inicio de barras exactamente en el margin
     const barW = Math.max(40, pageW - containerX - margin);
 
     // Parámetros base
@@ -473,7 +476,7 @@ function exportPdf() {
     const baseGap = 36;
     const baseMinW = 30;
 
-    // Dibujar diagramas
+    // Dibujar diagramas por perfil
     for (const [perfil, obj] of Object.entries(lastResults.tirasPorPerfil || {})) {
       const allTiras = obj.tiras || [];
       if (!allTiras || allTiras.length === 0) continue;
@@ -495,14 +498,15 @@ function exportPdf() {
 
       for (let i = 0; i < tiras.length; i++) {
         const t = tiras[i];
-        const piezasLen = (t.piezas || []).map(p => p.len);
+        const piezas = t.piezas || [];
+        const piezasLen = piezas.map(p => p.len);
         const totalLen = piezasLen.reduce((a, b) => a + b, 0) || Math.max(1, t.largo || 6000);
 
         let minW = baseMinW;
         let barH = baseBarH;
         let gap = baseGap;
 
-        // Escala tentativa
+        // Escala tentativa (se refina luego usando usableBarW)
         let scale = (barW - minW * piezasLen.length) / totalLen;
         let tries = 0;
         while (scale <= 0 && tries < 6) {
@@ -513,7 +517,7 @@ function exportPdf() {
           scale = (barW - minW * piezasLen.length) / totalLen;
         }
 
-        // Wrap si hace falta
+        // Wrap si hace falta (varias filas)
         let wrapRows = 1;
         if (scale <= 0) {
           const approxPerRow = Math.max(1, Math.floor(barW / (minW + 1)));
@@ -521,7 +525,7 @@ function exportPdf() {
           barH = Math.max(10, Math.floor(barH / wrapRows));
         }
 
-        // Paginación vertical
+        // Control de paginación vertical
         const neededV = wrapRows * (barH + 16) + 28;
         if (y + neededV > pageH - 80) { doc.addPage(); y = margin; }
 
@@ -535,19 +539,31 @@ function exportPdf() {
         let idx = 0;
         for (let row = 0; row < wrapRows; row++) {
           const piezasPorFila = Math.ceil(piezasLen.length / wrapRows);
-          const chunk = (t.piezas || []).slice(idx, idx + piezasPorFila);
+          const chunk = piezas.slice(idx, idx + piezasPorFila);
           const chunkLen = chunk.map(p => p.len).reduce((a, b) => a + b, 0) || 1;
-          const scaleRow = Math.max(0.0001, (barW - minW * chunk.length) / chunkLen);
 
-          // Contenedor de barra
+          // AHORA: usamos SOBRANTE_PX como franja fija al final
+          const sobrantePx = SOBRANTE_PX;
+          const usableBarW = Math.max(0, barW - sobrantePx);
+
+          // recalcular escala para que las piezas quepan en usableBarW
+          const scaleRow = Math.max(0.0001, (usableBarW - minW * chunk.length) / Math.max(1, chunkLen));
+
+          // Dibujar contenedor completo (barra fondo)
           doc.setDrawColor(0);
           doc.rect(containerX, y, barW, barH);
 
           let x = containerX;
+          let usedPx = 0;
 
-          // Dibujar segmentos y etiquetas (prioritarias: piezas y medidas)
+          // Dibujar segmentos en usableBarW (no tocan la franja fija)
           for (const p of chunk) {
-            const seg = Math.max(minW, Math.round(minW + p.len * scaleRow));
+            let seg = Math.max(minW, Math.round(minW + p.len * scaleRow));
+            // evitar pasar usableBarW acumulado
+            if (usedPx + seg > usableBarW) {
+              seg = Math.max(Math.min(seg, usableBarW - usedPx), minW);
+            }
+
             const color = colorForId(p.winId);
             doc.setFillColor(color[0], color[1], color[2]);
             doc.rect(x, y, seg, barH, 'F');
@@ -558,23 +574,30 @@ function exportPdf() {
             doc.text(p.winId, x + seg / 2, y + barH + 8, { align: 'center' });
             doc.text(`${p.len} mm`, x + seg / 2, y + barH + 16, { align: 'center' });
 
+            // Línea divisoria entre segmentos
             doc.setDrawColor(0);
             doc.line(x + seg, y, x + seg, y + barH);
 
             x += seg;
+            usedPx += seg;
+
+            // si se alcanzó usableBarW, detener para no invadir sobrante
+            if (usedPx >= usableBarW - 1) break;
           }
 
-          // Dibujar sobrante (franja gris al final)
-          const restante = Math.round(t.restante || 0);
-          let sobraW = 0;
-          if (restante > 0) {
-            sobraW = Math.round((restante / t.largo) * barW);
-            const drawSobraW = Math.max(0, Math.min(sobraW, barW - 2));
+          // Pintar la franja gris fija del sobrante (ancho SOBRANTE_PX)
+          if (sobrantePx > 0) {
+            const startSobraX = containerX + usableBarW;
             doc.setFillColor(210);
-            doc.rect(containerX + barW - drawSobraW, y, drawSobraW, barH, 'F');
+            doc.rect(startSobraX, y, sobrantePx, barH, 'F');
+
+            // línea divisoria clara entre piezas y sobrante
+            doc.setDrawColor(120);
+            doc.line(startSobraX, y, startSobraX, y + barH);
           }
 
           // Etiqueta "Sobrante" en esquina superior derecha de la barra con fondo blanco
+          const restante = Math.round(t.restante || 0);
           if (restante > 0) {
             const padRight = 6;
             const textX = containerX + barW - padRight;
@@ -595,10 +618,10 @@ function exportPdf() {
             doc.text(sobranteText, textX, textY, { align: 'right' });
           }
 
-          // Avanzar vertical para la siguiente fila
+          // Avanzar vertical
           y += barH + 18;
           idx += piezasPorFila;
-        } // end rows
+        } // end wrap rows
 
         y += Math.max(6, gap - 20);
       } // end tiras
@@ -622,7 +645,6 @@ function exportPdf() {
     alert('Error al generar PDF.');
   }
 }
-
 
 // 🔽 FUNCION BORRAR TODO
 function borrarTodo(){
