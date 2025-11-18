@@ -399,6 +399,7 @@ function calcular(){
 }
 
 /* ================== EXPORTAR PDF (Sobrante en esquina superior derecha con fondo) =================== */
+/* ================== EXPORTAR PDF (Barra inicia en margin - Opción B) =================== */
 function exportPdf() {
   if (!lastResults || !lastResults.tirasPorPerfil) {
     alert('Primero presiona Calcular resumen.');
@@ -463,20 +464,8 @@ function exportPdf() {
     doc.text(`Aprovechamiento total: ${lastResults.aprovechamiento.toFixed(2)}%`, margin, y);
     y += 22;
 
-    // Calcular inicio de barras: intentamos iniciar lo más a la izquierda posible
-    const minimalLeftSpace = 2; // ajuste si quieres más/menos margen izquierdo para las barras
-    const paddingBetweenTextAndBar = 8;
-
-    doc.setFontSize(12);
-    let maxLabelW = 0;
-    Object.keys(lastResults.tirasPorPerfil || {}).forEach(perf => {
-      const test = `${perf} — Diagramas (99 tiras)`;
-      const w = doc.getTextWidth(test);
-      if (w > maxLabelW) maxLabelW = w;
-    });
-
-    const leftOffset = Math.max(minimalLeftSpace, Math.min(maxLabelW + paddingBetweenTextAndBar, pageW * 0.0));
-    const containerX = margin + leftOffset;
+    // ===== Ahora: barras iniciando en margin (Opción B) =====
+    const containerX = margin;                 // inicio de barras igual al margin
     const barW = Math.max(40, pageW - containerX - margin);
 
     // Parámetros base
@@ -536,7 +525,7 @@ function exportPdf() {
         const neededV = wrapRows * (barH + 16) + 28;
         if (y + neededV > pageH - 80) { doc.addPage(); y = margin; }
 
-        // Etiqueta centrada arriba
+        // Etiqueta centrada arriba de la barra
         const label = `Tira ${i + 1} (${t.largo} mm)` + (t.count > 1 ? ` ×${t.count}` : '');
         doc.setFontSize(9);
         doc.text(label, containerX + barW / 2, y, { align: 'center' });
@@ -585,31 +574,23 @@ function exportPdf() {
             doc.rect(containerX + barW - drawSobraW, y, drawSobraW, barH, 'F');
           }
 
-          // ---------- Etiqueta "Sobrante" en esquina superior derecha de la barra (MEJORA) ----------
+          // Etiqueta "Sobrante" en esquina superior derecha de la barra con fondo blanco
           if (restante > 0) {
-            const padRight = 6; // separación desde el borde derecho de la barra
+            const padRight = 6;
             const textX = containerX + barW - padRight;
-            const textY = y - 4; // un poco por encima de la barra
-
+            const textY = y - 4;
             const sobranteText = `Sobrante ${restante} mm`;
             doc.setFontSize(8);
             const tw = doc.getTextWidth(sobranteText);
-
-            // fondo blanco detrás del texto para legibilidad
             const bgPad = 4;
             let bgX = textX - tw - bgPad;
             const bgW = tw + bgPad * 1.5;
             const bgH = 12;
             const bgY = textY - 10;
-
-            // evitar salirse del margen izquierdo
             if (bgX < margin) bgX = margin;
-
             doc.setDrawColor(0);
             doc.setFillColor(255, 255, 255);
             doc.rect(bgX, bgY, bgW, bgH, 'F');
-
-            // ahora dibujar el texto alineado a la derecha sobre ese fondo
             doc.setTextColor(30);
             doc.text(sobranteText, textX, textY, { align: 'right' });
           }
@@ -641,6 +622,7 @@ function exportPdf() {
     alert('Error al generar PDF.');
   }
 }
+
 
 // 🔽 FUNCION BORRAR TODO
 function borrarTodo(){
