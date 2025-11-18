@@ -398,7 +398,7 @@ function calcular(){
  document.getElementById('summary').innerHTML=html;
 }
 
-/* ================== EXPORTAR PDF (mejoras para que barras no se salgan) =================== */
+/* ================== EXPORTAR PDF (alineación izquierda y barras compactas) =================== */
 function exportPdf() {
   if (!lastResults || !lastResults.tirasPorPerfil) {
     alert('Primero presiona Calcular resumen.');
@@ -407,184 +407,188 @@ function exportPdf() {
 
   try {
     const { jsPDF } = window.jspdf;
-    // Usar letter landscape para impresión en hoja carta (más ancho)
+
+    // PDF Letter Landscape (más ancho que A4)
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
-    const margin = 28; // márgenes más compactos para aprovechar espacio
+    const margin = 28;
     let y = margin;
 
-    // Encabezado
+    /* ===========================================================
+       ENCABEZADO
+    =========================================================== */
     doc.setFontSize(16);
     doc.setTextColor(20);
     doc.text('OPTIMIZADOR DE CORTES - REPORTE TÉCNICO', pageW / 2, y, { align: 'center' });
+
     y += 20;
     doc.setFontSize(10);
     doc.text(`Proyecto: ${lastResults.proyecto || '-'}`, margin, y);
     doc.text(`Usuario: ${lastResults.usuario || '-'}`, margin + 260, y);
     doc.text(`Fecha: ${new Date().toLocaleString()}`, pageW - margin - 220, y);
+
     y += 16;
     doc.line(margin, y, pageW - margin, y);
-    y += 12;
+    y += 14;
 
-    // Resúmenes (texto, no tablas) - omito aquí por brevedad (igual que antes)
-    // ... (puedes copiar tu bloque de resúmenes en texto tal cual)
+    /* ===========================================================
+       RESÚMENES (simple texto)
+    =========================================================== */
+    doc.setFontSize(12);
+    doc.text('RESUMEN DE VENTANAS', margin, y);
+    y += 14;
 
-    // Configuración adaptable para diagramas
-    // containerX: donde empiezan las barras (dejamos sitio para etiqueta a la izquierda)
-    const containerX = margin + 130;
-    // barW: ancho máximo utilizable para barras en la página actual
+    Object.entries(lastResults.resumenVentanas || {}).forEach(([id, v]) => {
+      doc.setFontSize(10);
+      doc.text(`${id}: ${v.ancho} × ${v.alto} mm — Cantidad: ${v.qty}`, margin, y);
+      y += 12;
+    });
+
+    y += 10;
+    doc.setFontSize(12);
+    doc.text('RESUMEN DE HERRAJES Y ACCESORIOS', margin, y);
+    y += 14;
+
+    Object.entries(lastResults.resumenHerrajes || {}).forEach(([k, v]) => {
+      doc.setFontSize(10);
+      doc.text(`${k}: ${Number(v).toFixed(2)}`, margin, y);
+      y += 12;
+    });
+
+    y += 10;
+    doc.setFontSize(12);
+    doc.text('RESUMEN DE TIRAS POR PERFIL Y LARGO', margin, y);
+    y += 14;
+
+    Object.entries(lastResults.resumenPorPerfil || {}).forEach(([perfil, cant]) => {
+      doc.setFontSize(10);
+      doc.text(`${perfil}: ${cant} tiras`, margin, y);
+      y += 12;
+    });
+
+    y += 10;
+    doc.text(`Aprovechamiento total: ${lastResults.aprovechamiento.toFixed(2)}%`, margin, y);
+    y += 22;
+
+    /* ===========================================================
+       CALCULAR ANCHO DE COLUMNA IZQUIERDA (para alinear barras)
+    =========================================================== */
+    let maxLabelW = 0;
+    doc.setFontSize(12);
+
+    // comparar longitud del texto de perfiles
+    Object.keys(lastResults.tirasPorPerfil || {}).forEach(perfil => {
+      const w = doc.getTextWidth(perfil + " — Diagramas (99 tiras)");
+      if (w > maxLabelW) maxLabelW = w;
+    });
+
+    // también considerar etiqueta de tira
+    const sample = "Tira 10 (10000 mm)";
+    maxLabelW = Math.max(maxLabelW, doc.getTextWidth(sample));
+
+    // separación entre texto y barra
+    const paddingCol = 12;
+
+    // X donde iniciarán TODAS las barras
+    const containerX = margin + maxLabelW + paddingCol;
+
+    // ancho máximo disponible para las barras
     const barW = pageW - containerX - margin;
 
-    // Valores base (se ajustarán según necesidad)
-    let baseBarH = 20;      // altura barra
-    let baseGap = 36;       // separación entre barras
-    let baseMinW = 36;      // ancho mínimo por segmento (garantiza etiqueta visible)
-    let compactFont = false;
+    /* ===========================================================
+       PARÁMETROS BASE DE BARRAS
+    =========================================================== */
+    const baseBarH = 20;
+    const baseGap = 36;
+    const baseMinW = 36;
 
-    // Recorremos perfiles y tiras
+    /* ===========================================================
+       DIBUJAR DIAGRAMAS POR PERFIL
+    =========================================================== */
     for (const [perfil, obj] of Object.entries(lastResults.tirasPorPerfil || {})) {
       const allTiras = obj.tiras || [];
       if (allTiras.length === 0) continue;
 
-      // Si estoy llegando al final de la página, agregar página
-      if (y > pageH - 140) { doc.addPage(); y = margin; }
+      if (y > pageH - 160) { doc.addPage(); y = margin; }
 
       doc.setFontSize(12);
       doc.text(`${perfil} — Diagramas (${allTiras.length} tiras)`, margin, y);
-      y += 10;
+      y += 12;
 
       // Agrupar tiras idénticas
       const tirasMap = new Map();
       for (const t of allTiras) {
-        const clave = JSON.stringify(t.piezas.map(p => `${p.winId}-${p.len}`)) + '|' + t.largo;
+        const clave = JSON.stringify(t.piezas.map(p => `${p.winId}-${p.len}`)) + "|" + t.largo;
         if (!tirasMap.has(clave)) tirasMap.set(clave, { ...t, count: 1 });
         else tirasMap.get(clave).count++;
       }
+
       const tiras = Array.from(tirasMap.values());
 
       for (let i = 0; i < tiras.length; i++) {
         const t = tiras[i];
 
-        // Antes de dibujar, calculamos si caben horizontalmente; si no, adaptamos parámetros
         const piezasLen = t.piezas.map(p => p.len);
         const totalLen = piezasLen.reduce((a, b) => a + b, 0) || 1;
+
         let minW = baseMinW;
         let barH = baseBarH;
         let gap = baseGap;
-        let scale = (barW - minW * piezasLen.length) / totalLen;
 
-        // Si scale es negativo, reducimos minW y barH de forma gradual hasta que entre o hasta límites
+        let scale = (barW - minW * piezasLen.length) / totalLen;
         let attempts = 0;
+
         while (scale <= 0 && attempts < 6) {
           attempts++;
-          minW = Math.max(8, Math.floor(minW * 0.75));    // permitir minW más pequeño
-          barH = Math.max(10, Math.floor(barH * 0.9));     // reducir altura
-          gap = Math.max(10, Math.floor(gap * 0.85));      // reducir gap vertical
+          minW = Math.max(6, Math.floor(minW * 0.8));
+          barH = Math.max(10, Math.floor(barH * 0.9));
+          gap = Math.max(10, Math.floor(gap * 0.9));
           scale = (barW - minW * piezasLen.length) / totalLen;
-          // marcar fuente compacta si tuvimos que reducir mucho
-          if (attempts >= 3) compactFont = true;
         }
 
-        // Si aun así scale sigue <=0, hay demasiados segmentos: en ese caso
-        // colocaremos la tira en **dos filas** (wrap horizontal) para evitar overflow.
         let wrapRows = 1;
         if (scale <= 0) {
-          // calcular cantidad de segmentos por fila necesaria
-          const approxPerRow = Math.max(1, Math.floor((barW / (minW + 1)))); // segmentos que caben aprox.
+          const approxPerRow = Math.max(1, Math.floor(barW / (minW + 1)));
           wrapRows = Math.ceil(piezasLen.length / approxPerRow);
-          // reducimos la altura por fila para que las wrapRows quepan verticalmente
           barH = Math.max(10, Math.floor(barH / wrapRows));
         }
 
-        // control de paginación vertical
-        if (y + (barH + gap) * wrapRows > pageH - 80) { doc.addPage(); y = margin; }
+        // paginación
+        const neededV = wrapRows * (barH + 16) + 28;
+        if (y + neededV > pageH - 80) { doc.addPage(); y = margin; }
 
-        // Dibujar label de la tira
+        /* ------------------- ETIQUETA DE TIRA CENTRADA ------------------- */
         const label = `Tira ${i + 1} (${t.largo} mm)` + (t.count > 1 ? ` ×${t.count}` : '');
         doc.setFontSize(9);
-        doc.text(label, containerX - 12, y + barH / 2 + 4, { align: 'right' });
+        doc.text(label, containerX + barW / 2, y, { align: 'center' });
 
-        // Dibujo con posible wrap en varias filas
-        let xStart = containerX;
-        let piezasPorFila = piezasLen.length;
-        if (wrapRows > 1) {
-          // dividir en filas
-          piezasPorFila = Math.ceil(piezasLen.length / wrapRows);
-        }
-        // índice para piezas
+        y += 8;
+
+        /* ------------------- DIBUJAR BARRA / FILAS ------------------- */
         let idx = 0;
         for (let row = 0; row < wrapRows; row++) {
-          // calcular sub-array de piezas para esta fila
+          const piezasPorFila = Math.ceil(piezasLen.length / wrapRows);
           const chunk = t.piezas.slice(idx, idx + piezasPorFila);
           const chunkLen = chunk.map(p => p.len).reduce((a, b) => a + b, 0) || 1;
-          // recalcular scale para esta fila
           const scaleRow = Math.max(0.0001, (barW - minW * chunk.length) / chunkLen);
 
-          // contenedor de la barra
+          // contenedor de barra
+          doc.setDrawColor(0);
           doc.rect(containerX, y, barW, barH);
 
           let x = containerX;
+
           for (const p of chunk) {
-            const seg = Math.max(minW, minW + p.len * scaleRow); // longitud px del segmento
+            const seg = Math.max(minW, minW + p.len * scaleRow);
             const color = colorForId(p.winId);
             doc.setFillColor(color[0], color[1], color[2]);
             doc.rect(x, y, seg, barH, 'F');
 
-            // etiquetas pequeñas internas
+            // etiquetas debajo del segmento
             doc.setFontSize(7);
-            doc.setTextColor(255);
-            // si el seg es muy pequeño, no dibujar texto para evitar overlapp
-            if (seg > 36) {
-              doc.text(p.winId, x + seg / 2, y + barH / 2 + 3, { align: 'center' });
-              doc.text(`${p.len} mm`, x + seg / 2, y + barH / 2 + 11, { align: 'center' });
-            } else {
-              // dibujar sólo longitud sobre la barra si cabe
-            }
-
-            doc.setDrawColor(0);
-            doc.line(x + seg, y, x + seg, y + barH);
-            x += seg;
-          }
-
-          // Si hay sobrante lo pintamos (basado en t.restante)
-          const restante = Math.round(t.restante || 0);
-          if (restante > 0) {
-            const sobraW = (restante / t.largo) * barW;
-            doc.setFillColor(200);
-            doc.rect(containerX + barW - sobraW, y, sobraW, barH, 'F');
-            doc.setTextColor(0);
-            if (sobraW > 100) doc.text(`Sobrante ${restante} mm`, containerX + barW - sobraW / 2, y + barH / 2 + 3, { align: 'center' });
-          }
-
-          // pasar a la fila siguiente
-          y += barH + 6; // separación más corta entre filas del mismo t
-          idx += piezasPorFila;
-        }
-
-        // espacio después de la tira
-        y += Math.max(8, gap - 20);
-      } // end for tiras
-
-      y += 8;
-    } // end for perfiles
-
-    // Pie de página
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(100);
-      doc.text(`Página ${i} de ${totalPages} — Generado por Optimizador Técnico de Cortes`, pageW / 2, pageH - 14, { align: 'center' });
-    }
-
-    // Guardar PDF
-    doc.save(`Reporte_Cortes_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.pdf`);
-  } catch (err) {
-    console.error('Error en exportPdf:', err);
-    alert('Error al generar PDF.');
-  }
-}
+            doc.setTextColor(30);
+            doc.text(p.winId, x + seg / 2,
 
 // 🔽 FUNCION BORRAR TODO
 function borrarTodo(){
