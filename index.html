@@ -183,19 +183,56 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   /* INTERFAZ */
-  function addRow(){
-    const tbody=document.querySelector('#tableWindows tbody');
-    const tr=document.createElement('tr');
-    tr.innerHTML=`
-      <td><input type="text" placeholder="V1"></td>
-      <td><input type="number" placeholder="1000" min="0"></td>
-      <td><input type="number" placeholder="1500" min="0"></td>
-      <td><input type="number" value="1" min="1"></td>
-      <td><select>${Object.keys(SYSTEMS).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></td>
-      <td><input type="text" placeholder="Ej: 5000,6000"></td>
-      <td><button class="btn ghost" onclick="this.closest('tr').remove()">X</button></td>`;
-    tbody.appendChild(tr);
+function addRow(){
+  const tbody = document.querySelector('#tableWindows tbody');
+  const tr = document.createElement('tr');
+  
+  // Campos estándar
+  tr.innerHTML = `
+    <td><input type="text" placeholder="V1"></td>
+    <td><input type="number" placeholder="1000" min="0"></td>
+    <td><input type="number" placeholder="1500" min="0"></td>
+    <td><input type="number" value="1" min="1"></td>
+    <td>
+      <select onchange="handleWindowSelectChange(event)">
+        ${Object.keys(SYSTEMS).map(s => `<option value="${s}">${s}</option>`).join('')}
+      </select>
+    </td>
+    <td><input type="text" placeholder="Ej: 5000,6000"></td>
+    <td><button class="btn ghost" onclick="this.closest('tr').remove()">X</button></td>
+  `;
+  
+  tbody.appendChild(tr);
+}
+// Función que maneja el cambio en la selección de tipo de ventana
+function handleWindowSelectChange(event) {
+  const selectedSystem = event.target.value;
+  
+  // Comprobar si la ventana seleccionada es la "Ventana Corrediza Europea 2V (2 Hojas)"
+  if (selectedSystem === "Ventana Corrediza Europea 2V (2 Hojas)") {
+    const row = event.target.closest('tr');
+    
+    // Crear campos adicionales para las medidas de tira (2177, 2175, 2176)
+    const tdExtra = document.createElement('td');
+    tdExtra.colSpan = 2;
+    
+    tdExtra.innerHTML = `
+      <label for="ventana2177">Medida Tira 2177 (mm):</label>
+      <input id="ventana2177" type="number" placeholder="Tira 2177" min="0" />
+      <label for="ventana2175">Medida Tira 2175 (mm):</label>
+      <input id="ventana2175" type="number" placeholder="Tira 2175" min="0" />
+      <label for="ventana2176">Medida Tira 2176 (mm):</label>
+      <input id="ventana2176" type="number" placeholder="Tira 2176" min="0" />
+    `;
+    
+    row.appendChild(tdExtra);
+  } else {
+    // Si no es la ventana seleccionada, eliminar los campos adicionales si existen
+    const row = event.target.closest('tr');
+    const extraFields = row.querySelectorAll('td[colspan="2"]');
+    extraFields.forEach(field => field.remove());
   }
+}
 
   /* COLOR */
   function colorForId(id){
