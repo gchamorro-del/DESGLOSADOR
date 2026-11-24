@@ -168,28 +168,13 @@
       "PVCAP03":{cantidad:2,tipo:"herraje"},
       "PVCAP02":{cantidad:2,tipo:"herraje"},
     },
-      "PVC SERIE 88/88 PUERTA CORREDIZA + CEDAZO":{
+              "PVC SERIE 88/88 PUERTA CORREDIZA + CEDAZO":{
       "PVC07COBL":{altos:2,anchos:2},
       "PVC09COBL":{altos:4,anchos:4,dividirAncho:true},
       "PVC2PABL":{altos:4,anchos:4,dividirAncho:true},
       "PVC06COBL":{altos:2,anchos:2,dividirAncho:true},
       "PVC03COBL":{altos:2},
       "PVCF02":{tipo:"herraje",calcularSegun:{"PVC03VEBL":2,"PVC02VEBL":1,"PVC06COBL":1}},
-      "PVCRO08":{cantidad:4,tipo:"herraje"},
-      "PVCRO09":{cantidad:2,tipo:"herraje"},
-      "PVCCH01D":{cantidad:1,tipo:"herraje"},
-      "PVCAP03":{cantidad:2,tipo:"herraje"},
-      "PVCAP02":{cantidad:2,tipo:"herraje"},
-      "PVCCH05":{cantidad:2,tipo:"herraje"},
-      "PVCCH18B":{cantidad:2,tipo:"herraje"},
-      "PVCREF07":{altos:4},
-    },
-      "PVC SERIE 88/88 PUERTA CORREDIZA POCKET":{
-      "PVC07COBL":{altos:2,anchos:2},
-      "PVC09COBL":{altos:2,anchos:2,dividirAncho:true},
-      "PVC2PABL":{altos:2,anchos:2,dividirAncho:true},
-      "PVC03COBL":{altos:2},
-      "PVCF02":{tipo:"herraje",calcularSegun:{"PVC03VEBL":2,"PVC02VEBL":1}},
       "PVCRO08":{cantidad:4,tipo:"herraje"},
       "PVCRO09":{cantidad:2,tipo:"herraje"},
       "PVCCH01D":{cantidad:1,tipo:"herraje"},
@@ -404,7 +389,53 @@ function calcular(){
 
   for(const [perfil,def] of Object.entries(sys)){
     if(def.tipo==="herraje"){
-      const cantidadTotal=(def.cantidad||1)*qty;
+      let cantidadTotal;
+
+      // Regla universal:
+      // - Con calcularSegun: calcula según los metros lineales de los perfiles asociados.
+      // - Sin calcularSegun: conserva el cálculo por cantidad fija.
+      if(def.calcularSegun && typeof def.calcularSegun === "object"){
+        const referencias = Object.entries(def.calcularSegun);
+        const perfilesValidos = referencias.filter(([perfilBase]) => {
+          const perfilDef = sys[perfilBase];
+          return perfilDef && perfilDef.tipo !== "herraje";
+        });
+
+        // Solo calcula si todas las referencias existen como perfiles en el sistema.
+        // Si falta alguna, informa el problema y evita generar un resultado parcial.
+        if(perfilesValidos.length !== referencias.length || referencias.length === 0){
+          const faltantes = referencias
+            .filter(([perfilBase]) => {
+              const perfilDef = sys[perfilBase];
+              return !perfilDef || perfilDef.tipo === "herraje";
+            })
+            .map(([perfilBase]) => perfilBase);
+
+          console.warn(
+            `No se pudo calcular ${perfil}: perfiles de referencia no válidos en este sistema:`,
+            faltantes
+          );
+          cantidadTotal = 0;
+        } else {
+          cantidadTotal = perfilesValidos.reduce(
+            (total, [perfilBase, factor]) => {
+              const perfilDef = sys[perfilBase];
+              const altoPerfil = alto * (Number(perfilDef.altos) || 0);
+              const anchoCorte = perfilDef.dividirAncho ? Math.round(ancho / 2) : ancho;
+              const anchoPerfil = anchoCorte * (Number(perfilDef.anchos) || 0);
+
+              // Convierte mm a metros lineales y aplica el factor configurado.
+              return total + ((altoPerfil + anchoPerfil) / 1000) *
+                (Number(factor) || 0) * qty;
+            },
+            0
+          );
+        }
+      } else {
+        // Los herrajes sin calcularSegun conservan su cantidad fija.
+        cantidadTotal = (def.cantidad || 1) * qty;
+      }
+
       resumenHerrajes[perfil]=(resumenHerrajes[perfil]||0)+cantidadTotal;
       continue;
     }
